@@ -1,0 +1,906 @@
+"""
+Kantar Brand Lift Survey (BLS) Analysis
+========================================
+
+This script ingests, cleans, and analyzes Kantar BLS data to identify patterns
+in brand lift across time, channel, and demographics.
+
+Author: DoorDash Brand Measurement Team
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pathlib import Path
+import warnings
+import re
+from datetime import datetime
+from typing import Dict, List, Optional
+
+warnings.filterwarnings('ignore')
+
+# Set style for visualizations
+sns.set_style("whitegrid")
+plt.rcParams['figure.figsize'] = (12, 6)
+
+
+class KantarBLSAnalyzer:
+    """Main class for Kantar BLS data analysis."""
+    
+    def __init__(self, data_dir: str = None):
+        """
+        Initialize the analyzer.
+        
+        Parameters:
+        -----------
+        data_dir : str, optional
+            Directory containing the CSV files. If None, defaults to ../data relative to script location.
+        """
+        if data_dir is None:
+            # Default to data directory relative to script location
+            script_dir = Path(__file__).parent
+            self.data_dir = script_dir.parent / "data"
+        else:
+            self.data_dir = Path(data_dir)
+        self.metrics = None
+        self.answers = None
+        self.filters = None
+        self.filter_ids = None
+        self.codebook = None
+        self.merged_data = None
+        
+    def load_data(self, use_snowflake: bool = False, snowflake_config: Optional[Dict] = None):
+        """
+        Load all BLS data tables from CSV files or Snowflake.
+        
+        Parameters:
+        -----------
+        use_snowflake : bool
+            If True, load from Snowflake. Otherwise, load from CSV files.
+        snowflake_config : dict, optional
+            Snowflake connection configuration
+        """
+        print("Loading Kantar BLS data...")
+        
+        if use_snowflake:
+            self._load_from_snowflake(snowflake_config)
+        else:
+            self._load_from_csv()
+        
+        print(f"✓ Loaded metrics: {len(self.metrics):,} rows")
+        print(f"✓ Loaded answers: {len(self.answers):,} rows")
+        print(f"✓ Loaded filters: {len(self.filters):,} rows")
+        print(f"✓ Loaded filter_ids: {len(self.filter_ids):,} rows")
+        print(f"✓ Loaded codebook: {len(self.codebook):,} mappings")
+        
+    def _load_from_csv(self):
+        """Load data from CSV files."""
+        # Check if pre-merged file exists (faster option)
+        # Priority: 1) bls_metrics_merged.csv (our saved version), 2) bls_metrics_with_filters.csv (Kantar version)
+        merged_file = self.data_dir / "bls_metrics_merged.csv"
+        if merged_file.exists():
+            print("  Found saved merged file: bls_metrics_merged.csv")
+            print("  Using saved merged file (skipping individual file loading and merge)...")
+            # Load as metrics for compatibility, but we'll use load_merged_data() instead
+            self.metrics = pd.read_csv(merged_file, low_memory=False)
+        elif (self.data_dir / "bls_metrics_with_filters.csv").exists():
+            merged_file = self.data_dir / "bls_metrics_with_filters.csv"
+            print("  Found pre-merged file: bls_metrics_with_filters.csv")
+            print("  Using pre-merged file (skipping individual file loading)...")
+            self.metrics = pd.read_csv(merged_file, low_memory=False)
+            # Still need to load filter_ids for additional metadata if needed
+            filter_ids_file = self.data_dir / "kantar_bls_filter_ids.csv"
+            if filter_ids_file.exists():
+                self.filter_ids = pd.read_csv(filter_ids_file, low_memory=False)
+            else:
+                self.filter_ids = pd.DataFrame()
+            # Filters may not be needed if already merged, but load for compatibility
+            filters_file = self.data_dir / "kantar_bls_filters.csv"
+            if filters_file.exists():
+                self.filters = pd.read_csv(filters_file, low_memory=False)
+            else:
+                self.filters = pd.DataFrame()
+        else:
+            # Load individual files
+            self.metrics = pd.read_csv(self.data_dir / "bls_metrics.csv", low_memory=False)
+            # Load filters
+            self.filters = pd.read_csv(self.data_dir / "kantar_bls_filters.csv", low_memory=False)
+            # Load filter_ids
+            self.filter_ids = pd.read_csv(self.data_dir / "kantar_bls_filter_ids.csv", low_memory=False)
+        
+        # Load answers (may be large, so use chunking if needed)
+        answers_file = self.data_dir / "bls_answers.csv"
+        if answers_file.exists():
+            try:
+                self.answers = pd.read_csv(answers_file, low_memory=False)
+            except MemoryError:
+                print("Warning: Answers file is very large. Loading in chunks...")
+                chunks = []
+                for chunk in pd.read_csv(answers_file, chunksize=100000, low_memory=False):
+                    chunks.append(chunk)
+                self.answers = pd.concat(chunks, ignore_index=True)
+        else:
+            print("  Warning: bls_answers.csv not found. Skipping answers data.")
+            self.answers = pd.DataFrame()
+        
+        # Load codebook mapping
+        codebook_files = list(self.data_dir.glob("*codebook*.csv"))
+        if codebook_files:
+            self.codebook = pd.read_csv(codebook_files[0])
+        else:
+            print("  Warning: Codebook mapping file not found.")
+            self.codebook = pd.DataFrame()
+        
+    def _load_from_snowflake(self, config: Dict):
+        """Load data from Snowflake (to be implemented)."""
+        # TODO: Implement Snowflake connection
+        # import snowflake.connector
+        # conn = snowflake.connector.connect(**config)
+        # self.metrics = pd.read_sql("SELECT * FROM marketing.kantar.bls_metrics", conn)
+        # ...
+        raise NotImplementedError("Snowflake loading not yet implemented. Use CSV files for now.")
+    
+    def clean_and_merge(self, save_merged: bool = True):
+        """
+        Clean data and create merged analysis dataset.
+        
+        Parameters:
+        -----------
+        save_merged : bool, default True
+            If True, save the merged dataset to CSV file for future use
+        """
+        print("\nCleaning and merging data...")
+        
+        # Check if data is already merged (from saved file or pre-merged file)
+        merged_file = self.data_dir / "bls_metrics_merged.csv"
+        if merged_file.exists():
+            print("  Found saved merged file. Loading directly...")
+            self.load_merged_data()
+            return
+        
+        merged_file = self.data_dir / "bls_metrics_with_filters.csv"
+        if merged_file.exists() and 'FILTER_NAME' in self.metrics.columns and 'GROUP_NAME' in self.metrics.columns:
+            print("  Data already merged. Skipping merge step...")
+            self.merged_data = self._clean_metrics()
+        else:
+            # Clean metrics
+            self.metrics = self._clean_metrics()
+            
+            # Clean filters and filter_ids
+            self.filters = self._clean_filters()
+            self.filter_ids = self._clean_filter_ids()
+            
+            # Merge metrics with filter metadata
+            self.merged_data = self._merge_data()
+        
+        # Extract time and channel information
+        self.merged_data = self._extract_dimensions()
+        
+        print(f"✓ Merged dataset: {len(self.merged_data):,} rows")
+        print(f"✓ Unique filters: {self.merged_data['FILTER_ID'].nunique():,}")
+        print(f"✓ Unique metrics: {self.merged_data['METRIC_ID'].nunique():,}")
+        
+        # Save merged data if requested
+        if save_merged:
+            self._save_merged_data()
+        
+    def _clean_metrics(self) -> pd.DataFrame:
+        """Clean metrics data."""
+        df = self.metrics.copy()
+        
+        # Ensure numeric columns are numeric
+        numeric_cols = ['LIFT', 'DELTA', 'EXPOSED_PERCENT', 'CONTROL_PERCENT', 
+                        'EXPOSED_POPULATION', 'CONTROL_POPULATION', 'SIGNIFICANCE_LEVEL']
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # Calculate lift if missing
+        if 'LIFT' in df.columns and df['LIFT'].isna().any():
+            mask = df['LIFT'].isna()
+            df.loc[mask, 'LIFT'] = (
+                (df.loc[mask, 'EXPOSED_PERCENT'] - df.loc[mask, 'CONTROL_PERCENT']) 
+                / df.loc[mask, 'CONTROL_PERCENT'].replace(0, np.nan) * 100
+            )
+        
+        return df
+    
+    def _clean_filters(self) -> pd.DataFrame:
+        """Clean filters data."""
+        df = self.filters.copy()
+        
+        # Standardize column names
+        if 'GROUP_NAME' in df.columns:
+            df['GROUP_NAME'] = df['GROUP_NAME'].str.strip()
+        if 'NAME' in df.columns:
+            df['NAME'] = df['NAME'].str.strip()
+        
+        return df
+    
+    def _clean_filter_ids(self) -> pd.DataFrame:
+        """Clean filter_ids data."""
+        df = self.filter_ids.copy()
+        
+        # Standardize column names
+        if 'GROUP_NAME' in df.columns:
+            df['GROUP_NAME'] = df['GROUP_NAME'].str.strip()
+        if 'NAME' in df.columns:
+            df['NAME'] = df['NAME'].str.strip()
+        if 'SURVEY_LABEL' in df.columns:
+            df['SURVEY_LABEL'] = df['SURVEY_LABEL'].str.strip()
+        
+        return df
+    
+    def _merge_data(self) -> pd.DataFrame:
+        """
+        Merge metrics with filter metadata.
+        
+        Steps:
+        1. Join bls_metrics with kantar_bls_filter_ids on FILTER_ID
+        2. Join to kantar_bls_filters to get filter_name and group_name
+        """
+        # Start with metrics
+        merged = self.metrics.copy()
+        
+        # Step 1: Merge with filter_ids to get GROUP_NAME, NAME, SURVEY_LABEL, etc.
+        if 'FILTER_ID' in merged.columns and 'FILTER_ID' in self.filter_ids.columns:
+            # Get available columns from filter_ids
+            filter_id_cols = ['FILTER_ID']
+            for col in ['GROUP_NAME', 'NAME', 'SURVEY_ID', 'SURVEY_LABEL']:
+                if col in self.filter_ids.columns:
+                    filter_id_cols.append(col)
+            
+            merged = merged.merge(
+                self.filter_ids[filter_id_cols],
+                on='FILTER_ID',
+                how='left'
+            )
+        
+        # Step 2: Merge with filters table to get additional filter_name and group_name
+        # (filters table may have more detailed information)
+        if 'FILTER_ID' in merged.columns and 'FILTER_ID' in self.filters.columns:
+            # Get available columns from filters
+            filter_cols = ['FILTER_ID']
+            for col in ['GROUP_NAME', 'NAME', 'SURVEY_ID']:
+                if col in self.filters.columns:
+                    filter_cols.append(col)
+            
+            # Remove duplicates to avoid many-to-many joins
+            filters_subset = self.filters[filter_cols].drop_duplicates(subset=['FILTER_ID'])
+            
+            # Merge with suffixes to handle overlapping column names
+            merged = merged.merge(
+                filters_subset,
+                on='FILTER_ID',
+                how='left',
+                suffixes=('_filter_ids', '_filters')
+            )
+            
+            # Consolidate GROUP_NAME and NAME columns
+            # Prefer filters table values, fall back to filter_ids
+            if 'GROUP_NAME_filters' in merged.columns:
+                merged['GROUP_NAME'] = merged['GROUP_NAME_filters'].fillna(merged.get('GROUP_NAME_filter_ids', ''))
+                merged = merged.drop(columns=['GROUP_NAME_filters', 'GROUP_NAME_filter_ids'], errors='ignore')
+            elif 'GROUP_NAME_filter_ids' in merged.columns:
+                merged['GROUP_NAME'] = merged['GROUP_NAME_filter_ids']
+                merged = merged.drop(columns=['GROUP_NAME_filter_ids'], errors='ignore')
+            
+            # Handle NAME/FILTER_NAME - use NAME from filters as FILTER_NAME
+            if 'NAME_filters' in merged.columns:
+                merged['FILTER_NAME'] = merged['NAME_filters'].fillna(merged.get('NAME_filter_ids', ''))
+                # Keep original NAME from filter_ids as well if it exists
+                if 'NAME_filter_ids' in merged.columns:
+                    merged['NAME'] = merged['NAME_filter_ids']
+                merged = merged.drop(columns=['NAME_filters', 'NAME_filter_ids'], errors='ignore')
+            elif 'NAME_filter_ids' in merged.columns:
+                merged['FILTER_NAME'] = merged['NAME_filter_ids']
+                merged['NAME'] = merged['NAME_filter_ids']
+        
+        return merged
+    
+    def _extract_dimensions(self) -> pd.DataFrame:
+        """
+        Extract time, channel, and demographic dimensions from filter metadata.
+        """
+        df = self.merged_data.copy()
+        
+        # Extract channel from GROUP_NAME or FILTER_NAME or NAME
+        # Common channels: TV, OTT, Social, Digital, etc.
+        channel_keywords = {
+            'TV': ['TV', 'television', 'broadcast'],
+            'OTT': ['OTT', 'streaming', 'hulu', 'netflix'],
+            'Social': ['social', 'facebook', 'instagram', 'twitter', 'x', 'tiktok', 'snapchat'],
+            'Digital': ['digital', 'display', 'banner', 'programmatic'],
+            'Podcast': ['podcast', 'audio'],
+            'Radio': ['radio'],
+            'CTV': ['CTV', 'connected tv']
+        }
+        
+        def extract_channel(group_name, filter_name, name):
+            # Try FILTER_NAME first (from merged file), then NAME, then GROUP_NAME
+            text = f"{group_name} {filter_name} {name}".lower()
+            for channel, keywords in channel_keywords.items():
+                if any(kw in text for kw in keywords):
+                    return channel
+            return 'Other'
+        
+        df['CHANNEL'] = df.apply(
+            lambda row: extract_channel(
+                str(row.get('GROUP_NAME', '')),
+                str(row.get('FILTER_NAME', '')),
+                str(row.get('NAME', ''))
+            ),
+            axis=1
+        )
+        
+        # Extract time dimension (month/year) from FILTER_NAME, SURVEY_LABEL, or other fields
+        df['TIME_PERIOD'] = self._extract_time_period(df)
+        df['TIME_DATE'] = self._parse_time_to_date(df)
+        
+        # Extract demographics from GROUP_NAME or NAME
+        demo_keywords = {
+            'Hispanic': ['hispanic', 'hisp'],
+            'Core': ['core'],
+            'Age': ['age', '18-24', '25-34', '35-44', '45-54', '55+'],
+            'Gender': ['male', 'female', 'gender'],
+            'Income': ['income']
+        }
+        
+        def extract_demographic(group_name, filter_name, name):
+            text = f"{group_name} {filter_name} {name}".lower()
+            for demo, keywords in demo_keywords.items():
+                if any(kw in text for kw in keywords):
+                    return demo
+            return 'General'
+        
+        df['DEMOGRAPHIC'] = df.apply(
+            lambda row: extract_demographic(
+                str(row.get('GROUP_NAME', '')),
+                str(row.get('FILTER_NAME', '')),
+                str(row.get('NAME', ''))
+            ),
+            axis=1
+        )
+        
+        return df
+    
+    def _extract_time_period(self, df: pd.DataFrame) -> pd.Series:
+        """
+        Extract time period labels from filter names or other fields.
+        Returns a series with time period strings (e.g., "April 2025", "Q2 2025").
+        """
+        time_periods = []
+        
+        for idx, row in df.iterrows():
+            time_period = None
+            
+            # Try FILTER_NAME first (most likely to have time info)
+            if 'FILTER_NAME' in row and pd.notna(row['FILTER_NAME']):
+                time_period = self._parse_time_from_text(str(row['FILTER_NAME']))
+            
+            # Try NAME if FILTER_NAME didn't work
+            if not time_period and 'NAME' in row and pd.notna(row['NAME']):
+                time_period = self._parse_time_from_text(str(row['NAME']))
+            
+            # Try SURVEY_LABEL
+            if not time_period and 'SURVEY_LABEL' in row and pd.notna(row['SURVEY_LABEL']):
+                time_period = self._parse_time_from_text(str(row['SURVEY_LABEL']))
+            
+            # Try GROUP_NAME as last resort
+            if not time_period and 'GROUP_NAME' in row and pd.notna(row['GROUP_NAME']):
+                time_period = self._parse_time_from_text(str(row['GROUP_NAME']))
+            
+            time_periods.append(time_period if time_period else 'Unknown')
+        
+        return pd.Series(time_periods, index=df.index)
+    
+    def _parse_time_from_text(self, text: str) -> Optional[str]:
+        """
+        Parse time information from text.
+        Looks for patterns like:
+        - "April 2025" → "April 2025"
+        - "Q2 2025" → "Q2 2025"
+        - "2025-04" → "April 2025"
+        - "Apr 2025" → "April 2025"
+        """
+        if not text or pd.isna(text):
+            return None
+        
+        text = str(text).strip()
+        
+        # Month names (full and abbreviated)
+        months = {
+            'january': 'January', 'jan': 'January',
+            'february': 'February', 'feb': 'February',
+            'march': 'March', 'mar': 'March',
+            'april': 'April', 'apr': 'April',
+            'may': 'May',
+            'june': 'June', 'jun': 'June',
+            'july': 'July', 'jul': 'July',
+            'august': 'August', 'aug': 'August',
+            'september': 'September', 'sep': 'September', 'sept': 'September',
+            'october': 'October', 'oct': 'October',
+            'november': 'November', 'nov': 'November',
+            'december': 'December', 'dec': 'December'
+        }
+        
+        # Pattern 1: "Month Year" or "Month, Year" (e.g., "April 2025", "Apr 2025")
+        for month_key, month_full in months.items():
+            pattern = rf'\b{month_key}\s*,?\s*(\d{{4}})\b'
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                year = match.group(1)
+                return f"{month_full} {year}"
+        
+        # Pattern 2: "Year-Month" or "Year/Month" (e.g., "2025-04", "2025/04")
+        pattern = r'\b(\d{4})[-/](\d{1,2})\b'
+        match = re.search(pattern, text)
+        if match:
+            year = match.group(1)
+            month_num = int(match.group(2))
+            if 1 <= month_num <= 12:
+                month_names = ['January', 'February', 'March', 'April', 'May', 'June',
+                              'July', 'August', 'September', 'October', 'November', 'December']
+                return f"{month_names[month_num - 1]} {year}"
+        
+        # Pattern 3: Quarter format (e.g., "Q2 2025", "Q2-2025", "2025 Q2")
+        pattern = r'\bQ([1-4])\s*,?\s*(\d{4})\b|\b(\d{4})\s*,?\s*Q([1-4])\b'
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            if match.group(1):  # Q2 2025 format
+                quarter = match.group(1)
+                year = match.group(2)
+            else:  # 2025 Q2 format
+                year = match.group(3)
+                quarter = match.group(4)
+            return f"Q{quarter} {year}"
+        
+        # Pattern 4: Just year (e.g., "2025")
+        pattern = r'\b(20\d{2})\b'
+        match = re.search(pattern, text)
+        if match:
+            year = match.group(1)
+            return f"{year}"
+        
+        return None
+    
+    def _parse_time_to_date(self, df: pd.DataFrame) -> pd.Series:
+        """
+        Parse time period strings into standardized date format (YYYY-MM-DD).
+        Example: "April 2025" → "2025-04-01"
+        """
+        dates = []
+        
+        for idx, row in df.iterrows():
+            time_period = row.get('TIME_PERIOD', '')
+            
+            if pd.isna(time_period) or time_period == 'Unknown':
+                dates.append(None)
+                continue
+            
+            time_period = str(time_period).strip()
+            date = None
+            
+            # Pattern 1: "Month Year" (e.g., "April 2025")
+            months = {
+                'january': 1, 'february': 2, 'march': 3, 'april': 4,
+                'may': 5, 'june': 6, 'july': 7, 'august': 8,
+                'september': 9, 'october': 10, 'november': 11, 'december': 12
+            }
+            
+            for month_name, month_num in months.items():
+                pattern = rf'\b{month_name}\s+(\d{{4}})\b'
+                match = re.search(pattern, time_period, re.IGNORECASE)
+                if match:
+                    year = int(match.group(1))
+                    try:
+                        date = datetime(year, month_num, 1).strftime('%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        pass
+                    break
+            
+            # Pattern 2: "Q# Year" (e.g., "Q2 2025" → first month of quarter)
+            if not date:
+                pattern = r'\bQ([1-4])\s+(\d{4})\b'
+                match = re.search(pattern, time_period, re.IGNORECASE)
+                if match:
+                    quarter = int(match.group(1))
+                    year = int(match.group(2))
+                    # Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct
+                    month_num = (quarter - 1) * 3 + 1
+                    try:
+                        date = datetime(year, month_num, 1).strftime('%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        pass
+            
+            # Pattern 3: "YYYY-MM-DD" or "YYYY/MM/DD" (already formatted)
+            if not date:
+                pattern = r'\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b'
+                match = re.search(pattern, time_period)
+                if match:
+                    year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                    try:
+                        date = datetime(year, month, day).strftime('%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        pass
+            
+            # Pattern 4: "YYYY-MM" (e.g., "2025-04")
+            if not date:
+                pattern = r'\b(\d{4})[-/](\d{1,2})\b'
+                match = re.search(pattern, time_period)
+                if match:
+                    year, month = int(match.group(1)), int(match.group(2))
+                    try:
+                        date = datetime(year, month, 1).strftime('%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        pass
+            
+            # Pattern 5: Just year (e.g., "2025" → "2025-01-01")
+            if not date:
+                pattern = r'\b(20\d{2})\b'
+                match = re.search(pattern, time_period)
+                if match:
+                    year = int(match.group(1))
+                    try:
+                        date = datetime(year, 1, 1).strftime('%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        pass
+            
+            dates.append(date)
+        
+        return pd.Series(dates, index=df.index)
+    
+    def _save_merged_data(self):
+        """
+        Save the merged dataset to CSV file for future use.
+        Saves to data directory as bls_metrics_merged.csv
+        """
+        if self.merged_data is None:
+            print("  Warning: No merged data to save.")
+            return
+        
+        output_file = self.data_dir / "bls_metrics_merged.csv"
+        
+        try:
+            print(f"\nSaving merged data to {output_file}...")
+            self.merged_data.to_csv(output_file, index=False)
+            file_size = output_file.stat().st_size / (1024 * 1024)  # Size in MB
+            print(f"✓ Saved merged dataset: {len(self.merged_data):,} rows ({file_size:.2f} MB)")
+            print(f"  File: {output_file}")
+        except Exception as e:
+            print(f"  Warning: Could not save merged data: {str(e)}")
+    
+    def load_merged_data(self, filename: str = "bls_metrics_merged.csv"):
+        """
+        Load previously saved merged data to skip merge step.
+        
+        Parameters:
+        -----------
+        filename : str, default "bls_metrics_merged.csv"
+            Name of the saved merged data file in data directory
+        """
+        merged_file = self.data_dir / filename
+        
+        if not merged_file.exists():
+            raise FileNotFoundError(f"Merged data file not found: {merged_file}")
+        
+        print(f"Loading saved merged data from {filename}...")
+        self.merged_data = pd.read_csv(merged_file, low_memory=False)
+        
+        # Convert TIME_DATE to datetime if it exists
+        if 'TIME_DATE' in self.merged_data.columns:
+            self.merged_data['TIME_DATE'] = pd.to_datetime(self.merged_data['TIME_DATE'], errors='coerce')
+        
+        print(f"✓ Loaded merged dataset: {len(self.merged_data):,} rows")
+        print(f"✓ Unique filters: {self.merged_data['FILTER_ID'].nunique():,}")
+        print(f"✓ Unique metrics: {self.merged_data['METRIC_ID'].nunique():,}")
+    
+    def analyze_trends(self, metric_name: Optional[str] = None, 
+                      group_by: List[str] = None) -> pd.DataFrame:
+        """
+        Analyze trends in brand lift across specified dimensions.
+        
+        Parameters:
+        -----------
+        metric_name : str, optional
+            Specific metric to analyze (e.g., "Unaided Brand Awareness")
+        group_by : list of str, optional
+            Dimensions to group by (e.g., ['CHANNEL', 'TIME_PERIOD'])
+        
+        Returns:
+        --------
+        pd.DataFrame
+            Aggregated results
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        df = self.merged_data.copy()
+        
+        # Filter by metric if specified
+        if metric_name:
+            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+        
+        # Default grouping
+        if group_by is None:
+            group_by = ['CHANNEL', 'METRIC_NAME']
+        
+        # Aggregate
+        agg_dict = {
+            'LIFT': ['mean', 'std', 'count'],
+            'DELTA': ['mean', 'std'],
+            'EXPOSED_PERCENT': 'mean',
+            'CONTROL_PERCENT': 'mean',
+            'SIGNIFICANCE_LEVEL': 'mean'
+        }
+        
+        # Only include columns that exist
+        agg_dict = {k: v for k, v in agg_dict.items() if k in df.columns}
+        
+        results = df.groupby(group_by).agg(agg_dict).reset_index()
+        results.columns = ['_'.join(col).strip('_') if col[1] else col[0] 
+                          for col in results.columns.values]
+        
+        return results
+    
+    def detect_significance(self, alpha: float = 0.05) -> pd.DataFrame:
+        """
+        Identify statistically significant lift results.
+        
+        Parameters:
+        -----------
+        alpha : float
+            Significance level threshold
+        
+        Returns:
+        --------
+        pd.DataFrame
+            Results with significance flags
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        df = self.merged_data.copy()
+        
+        # Add significance flag based on SIGNIFICANCE_LEVEL
+        if 'SIGNIFICANCE_LEVEL' in df.columns:
+            df['IS_SIGNIFICANT'] = df['SIGNIFICANCE_LEVEL'] <= alpha
+        else:
+            # If no significance level, use a heuristic based on sample size and lift
+            # This is a simplified approach - adjust based on your needs
+            df['IS_SIGNIFICANT'] = (
+                (df['EXPOSED_POPULATION'] >= 100) & 
+                (df['CONTROL_POPULATION'] >= 100) &
+                (abs(df['LIFT']) > 5)  # At least 5% lift
+            )
+        
+        # Calculate confidence intervals (simplified)
+        # For proper CI calculation, you'd need the standard errors
+        df['LIFT_CI_LOWER'] = df['LIFT'] - 1.96 * df.get('LIFT_STD', 0)
+        df['LIFT_CI_UPPER'] = df['LIFT'] + 1.96 * df.get('LIFT_STD', 0)
+        
+        return df
+    
+    def identify_patterns(self, min_observations: int = 3) -> Dict:
+        """
+        Identify consistent patterns vs noise in lift results.
+        
+        Parameters:
+        -----------
+        min_observations : int
+            Minimum number of observations to consider a pattern
+        
+        Returns:
+        --------
+        dict
+            Dictionary with pattern analysis results
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        df = self.merged_data.copy()
+        
+        patterns = {}
+        
+        # 1. Consistency by channel
+        channel_consistency = df.groupby(['CHANNEL', 'METRIC_NAME']).agg({
+            'LIFT': ['mean', 'std', 'count']
+        }).reset_index()
+        channel_consistency.columns = ['CHANNEL', 'METRIC_NAME', 'MEAN_LIFT', 'STD_LIFT', 'COUNT']
+        channel_consistency = channel_consistency[channel_consistency['COUNT'] >= min_observations]
+        channel_consistency['CV'] = channel_consistency['STD_LIFT'] / channel_consistency['MEAN_LIFT'].abs()
+        channel_consistency['IS_CONSISTENT'] = channel_consistency['CV'] < 0.5  # Coefficient of variation < 50%
+        
+        patterns['channel_consistency'] = channel_consistency
+        
+        # 2. Time trends
+        if 'TIME_PERIOD' in df.columns:
+            time_trends = df.groupby(['TIME_PERIOD', 'METRIC_NAME']).agg({
+                'LIFT': ['mean', 'count']
+            }).reset_index()
+            time_trends.columns = ['TIME_PERIOD', 'METRIC_NAME', 'MEAN_LIFT', 'COUNT']
+            patterns['time_trends'] = time_trends
+        
+        # 3. Metric performance ranking
+        metric_performance = df.groupby('METRIC_NAME').agg({
+            'LIFT': ['mean', 'std', 'count'],
+            'SIGNIFICANCE_LEVEL': 'mean'
+        }).reset_index()
+        metric_performance.columns = ['METRIC_NAME', 'MEAN_LIFT', 'STD_LIFT', 'COUNT', 'AVG_SIG_LEVEL']
+        metric_performance = metric_performance.sort_values('MEAN_LIFT', ascending=False)
+        patterns['metric_performance'] = metric_performance
+        
+        # 4. Signal vs noise assessment
+        # Metrics with high variance relative to mean are likely noise
+        signal_metrics = metric_performance[
+            (metric_performance['COUNT'] >= min_observations) &
+            (metric_performance['STD_LIFT'] / metric_performance['MEAN_LIFT'].abs() < 1.0)
+        ]
+        noise_metrics = metric_performance[
+            (metric_performance['COUNT'] >= min_observations) &
+            (metric_performance['STD_LIFT'] / metric_performance['MEAN_LIFT'].abs() >= 1.0)
+        ]
+        
+        patterns['signal_metrics'] = signal_metrics
+        patterns['noise_metrics'] = noise_metrics
+        
+        return patterns
+    
+    def generate_report(self, output_dir: str = "output") -> str:
+        """
+        Generate a comprehensive analysis report.
+        
+        Parameters:
+        -----------
+        output_dir : str
+            Directory to save report and visualizations
+        
+        Returns:
+        --------
+        str
+            Path to generated report
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+        
+        print(f"\nGenerating analysis report in {output_dir}...")
+        
+        # Detect patterns
+        patterns = self.identify_patterns()
+        
+        # Create visualizations
+        self._create_visualizations(patterns, output_path)
+        
+        # Generate summary statistics
+        summary = self._generate_summary(patterns)
+        
+        # Save report
+        report_path = output_path / f"kantar_bls_report_{datetime.now().strftime('%Y%m%d')}.txt"
+        with open(report_path, 'w') as f:
+            f.write("=" * 80 + "\n")
+            f.write("KANTAR BRAND LIFT SURVEY - ANALYSIS REPORT\n")
+            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write("=" * 80 + "\n\n")
+            f.write(summary)
+        
+        print(f"✓ Report saved to {report_path}")
+        
+        return str(report_path)
+    
+    def _create_visualizations(self, patterns: Dict, output_path: Path):
+        """Create visualization charts."""
+        
+        # 1. Lift by channel
+        if 'channel_consistency' in patterns:
+            fig, ax = plt.subplots(figsize=(12, 6))
+            channel_data = patterns['channel_consistency'].groupby('CHANNEL')['MEAN_LIFT'].mean().sort_values()
+            channel_data.plot(kind='barh', ax=ax)
+            ax.set_xlabel('Average Lift (%)')
+            ax.set_title('Average Brand Lift by Channel')
+            ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
+            plt.tight_layout()
+            plt.savefig(output_path / 'lift_by_channel.png', dpi=300, bbox_inches='tight')
+            plt.close()
+        
+        # 2. Metric performance
+        if 'metric_performance' in patterns:
+            top_metrics = patterns['metric_performance'].head(15)
+            fig, ax = plt.subplots(figsize=(12, 8))
+            ax.barh(range(len(top_metrics)), top_metrics['MEAN_LIFT'])
+            ax.set_yticks(range(len(top_metrics)))
+            ax.set_yticklabels(top_metrics['METRIC_NAME'], fontsize=8)
+            ax.set_xlabel('Average Lift (%)')
+            ax.set_title('Top 15 Metrics by Average Lift')
+            ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
+            plt.tight_layout()
+            plt.savefig(output_path / 'top_metrics.png', dpi=300, bbox_inches='tight')
+            plt.close()
+        
+        # 3. Consistency heatmap
+        if 'channel_consistency' in patterns:
+            pivot = patterns['channel_consistency'].pivot_table(
+                index='METRIC_NAME',
+                columns='CHANNEL',
+                values='MEAN_LIFT'
+            )
+            if not pivot.empty:
+                fig, ax = plt.subplots(figsize=(14, max(8, len(pivot) * 0.3)))
+                sns.heatmap(pivot, annot=True, fmt='.1f', cmap='RdYlGn', center=0, ax=ax)
+                ax.set_title('Lift Heatmap: Metrics by Channel')
+                plt.tight_layout()
+                plt.savefig(output_path / 'lift_heatmap.png', dpi=300, bbox_inches='tight')
+                plt.close()
+    
+    def _generate_summary(self, patterns: Dict) -> str:
+        """Generate text summary of findings."""
+        summary = []
+        
+        summary.append("EXECUTIVE SUMMARY\n")
+        summary.append("-" * 80 + "\n")
+        
+        if 'metric_performance' in patterns:
+            top_5 = patterns['metric_performance'].head(5)
+            summary.append("Top 5 Metrics by Average Lift:\n")
+            for idx, row in top_5.iterrows():
+                summary.append(f"  {row['METRIC_NAME']}: {row['MEAN_LIFT']:.2f}% (n={row['COUNT']})\n")
+            summary.append("\n")
+        
+        if 'channel_consistency' in patterns:
+            channel_summary = patterns['channel_consistency'].groupby('CHANNEL').agg({
+                'MEAN_LIFT': 'mean',
+                'IS_CONSISTENT': lambda x: x.sum() / len(x) * 100
+            })
+            summary.append("Channel Performance:\n")
+            for channel, row in channel_summary.iterrows():
+                summary.append(f"  {channel}: {row['MEAN_LIFT']:.2f}% avg lift, "
+                             f"{row['IS_CONSISTENT']:.1f}% consistent metrics\n")
+            summary.append("\n")
+        
+        if 'signal_metrics' in patterns and 'noise_metrics' in patterns:
+            summary.append("Signal vs Noise:\n")
+            summary.append(f"  Metrics with consistent signal: {len(patterns['signal_metrics'])}\n")
+            summary.append(f"  Metrics with high noise: {len(patterns['noise_metrics'])}\n")
+            summary.append("\n")
+        
+        return "".join(summary)
+
+
+def main():
+    """Main execution function."""
+    # Initialize analyzer (uses default data_dir: ../data)
+    analyzer = KantarBLSAnalyzer()
+    
+    # Load data
+    analyzer.load_data(use_snowflake=False)
+    
+    # Clean and merge (saves merged data automatically)
+    analyzer.clean_and_merge(save_merged=True)
+    
+    # Analyze trends
+    print("\nAnalyzing trends...")
+    trends = analyzer.analyze_trends(group_by=['CHANNEL', 'METRIC_NAME'])
+    print(f"✓ Found {len(trends)} trend combinations")
+    
+    # Detect significance
+    print("\nDetecting significant results...")
+    significant = analyzer.detect_significance()
+    sig_count = significant['IS_SIGNIFICANT'].sum() if 'IS_SIGNIFICANT' in significant.columns else 0
+    print(f"✓ Found {sig_count:,} significant results")
+    
+    # Identify patterns
+    print("\nIdentifying patterns...")
+    patterns = analyzer.identify_patterns()
+    print(f"✓ Analyzed {len(patterns)} pattern categories")
+    
+    # Generate report in output directory
+    script_dir = Path(__file__).parent
+    output_dir = script_dir.parent / "output"
+    report_path = analyzer.generate_report(output_dir=str(output_dir))
+    print(f"\n✓ Analysis complete! Report saved to: {report_path}")
+    
+    return analyzer, patterns
+
+
+if __name__ == "__main__":
+    analyzer, patterns = main()
