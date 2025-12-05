@@ -148,7 +148,38 @@ channel_consistency = patterns['channel_consistency']
 # Filter significant results
 significant = analyzer.detect_significance(alpha=0.05)
 sig_results = significant[significant['IS_SIGNIFICANT']]
+
+# Find consistent signals across filters
+consistent_signals = analyzer.find_consistent_signals(min_filters=3, min_lift=0.0)
+print(f"Found {len(consistent_signals)} metrics with consistent signal across filters")
 ```
+
+### Find Consistent Signals
+
+To identify metrics that show consistent performance across different filters:
+
+```bash
+python scripts/find_consistent_signals.py
+```
+
+This will:
+- Identify metrics that perform reliably across multiple filters/channels
+- Calculate consistency scores
+- Generate detailed breakdowns
+- Save results to CSV files
+
+### Enrich Metrics with Human-Readable Filter Names
+
+To join all three tables and create enriched metrics with readable filter names:
+
+```bash
+python scripts/enrich_metrics_with_filters.py
+```
+
+This will:
+- Join `bls_metrics` with `kantar_bls_filter_ids` and `kantar_bls_filters` on `FILTER_ID`
+- Create human-readable filter names like "TV - Hispanic, exposed" or "Gen Z, not exposed"
+- Save enriched data to `output/bls_metrics_enriched.csv` and `data/bls_metrics_enriched.csv`
 
 ## Output
 
@@ -305,6 +336,8 @@ See **docs/UI_GUIDE.md** for detailed instructions.
 - **docs/MEDIA_CHANNELS.md** - Media channels used in brand marketing campaigns
 - **docs/TIME_EXTRACTION.md** - How time periods are extracted and parsed from filter names
 - **docs/SAVED_DATA.md** - How saved merged data works and how to use it
+- **docs/CONSISTENT_SIGNALS.md** - How to find consistent signals across filters and metrics
+- **docs/ENRICHMENT_SCRIPT.md** - How to enrich metrics with human-readable filter names
 
 ## Support
 

@@ -69,10 +69,22 @@ class KantarBLSAnalyzer:
             self._load_from_csv()
         
         print(f"✓ Loaded metrics: {len(self.metrics):,} rows")
-        print(f"✓ Loaded answers: {len(self.answers):,} rows")
-        print(f"✓ Loaded filters: {len(self.filters):,} rows")
-        print(f"✓ Loaded filter_ids: {len(self.filter_ids):,} rows")
-        print(f"✓ Loaded codebook: {len(self.codebook):,} mappings")
+        if self.answers is not None and not self.answers.empty:
+            print(f"✓ Loaded answers: {len(self.answers):,} rows")
+        else:
+            print("✓ Answers: Not loaded (optional)")
+        if self.filters is not None and not self.filters.empty:
+            print(f"✓ Loaded filters: {len(self.filters):,} rows")
+        else:
+            print("✓ Filters: Not loaded (using merged file)")
+        if self.filter_ids is not None and not self.filter_ids.empty:
+            print(f"✓ Loaded filter_ids: {len(self.filter_ids):,} rows")
+        else:
+            print("✓ Filter IDs: Not loaded (using merged file)")
+        if self.codebook is not None and not self.codebook.empty:
+            print(f"✓ Loaded codebook: {len(self.codebook):,} mappings")
+        else:
+            print("✓ Codebook: Not loaded (optional)")
         
     def _load_from_csv(self):
         """Load data from CSV files."""
@@ -84,6 +96,11 @@ class KantarBLSAnalyzer:
             print("  Using saved merged file (skipping individual file loading and merge)...")
             # Load as metrics for compatibility, but we'll use load_merged_data() instead
             self.metrics = pd.read_csv(merged_file, low_memory=False)
+            # Initialize other data objects as empty DataFrames since we're using merged file
+            self.filters = pd.DataFrame()
+            self.filter_ids = pd.DataFrame()
+            self.answers = pd.DataFrame()
+            self.codebook = pd.DataFrame()
         elif (self.data_dir / "bls_metrics_with_filters.csv").exists():
             merged_file = self.data_dir / "bls_metrics_with_filters.csv"
             print("  Found pre-merged file: bls_metrics_with_filters.csv")
@@ -153,14 +170,26 @@ class KantarBLSAnalyzer:
         print("\nCleaning and merging data...")
         
         # Check if data is already merged (from saved file or pre-merged file)
-        merged_file = self.data_dir / "bls_metrics_merged.csv"
-        if merged_file.exists():
-            print("  Found saved merged file. Loading directly...")
-            self.load_merged_data()
+        # First check if we already loaded the saved merged file in load_data()
+        if (self.metrics is not None and 
+            not self.metrics.empty and
+            ('CHANNEL' in self.metrics.columns or 'TIME_PERIOD' in self.metrics.columns)):
+            # This is our saved merged file with extracted dimensions
+            print("  Using saved merged file with extracted dimensions...")
+            self.merged_data = self.metrics.copy()
+            # Ensure TIME_DATE is datetime if it exists
+            if 'TIME_DATE' in self.merged_data.columns:
+                self.merged_data['TIME_DATE'] = pd.to_datetime(self.merged_data['TIME_DATE'], errors='coerce')
+            print(f"✓ Using saved merged dataset: {len(self.merged_data):,} rows")
             return
         
+        # Check if we have pre-merged file from Kantar
         merged_file = self.data_dir / "bls_metrics_with_filters.csv"
-        if merged_file.exists() and 'FILTER_NAME' in self.metrics.columns and 'GROUP_NAME' in self.metrics.columns:
+        if (merged_file.exists() and 
+            self.metrics is not None and 
+            not self.metrics.empty and
+            'FILTER_NAME' in self.metrics.columns and 
+            'GROUP_NAME' in self.metrics.columns):
             print("  Data already merged. Skipping merge step...")
             self.merged_data = self._clean_metrics()
         else:
@@ -682,6 +711,123 @@ class KantarBLSAnalyzer:
         
         return df
     
+    def find_consistent_signals(self, min_filters: int = 3, min_lift: float = 0.0) -> pd.DataFrame:
+        """
+        Find brand metrics that show consistent signal across multiple filters.
+        
+        This identifies metrics that perform well (or consistently) across different
+        channels, demographics, time periods, etc.
+        
+        Parameters:
+        -----------
+        min_filters : int, default 3
+            Minimum number of different filters a metric must appear in
+        min_lift : float, default 0.0
+            Minimum average lift to consider (can be negative to include all)
+        
+        Returns:
+        --------
+        pd.DataFrame
+            Metrics with consistency scores across filters
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        df = self.merged_data.copy()
+        
+        # Group by metric and filter to get lift per metric-filter combination
+        metric_filter_lift = df.groupby(['METRIC_NAME', 'FILTER_ID']).agg({
+            'LIFT': 'mean',
+            'SIGNIFICANCE_LEVEL': 'mean',
+            'EXPOSED_POPULATION': 'sum',
+            'CONTROL_POPULATION': 'sum'
+        }).reset_index()
+        
+        # Calculate consistency metrics per brand metric
+        metric_consistency = metric_filter_lift.groupby('METRIC_NAME').agg({
+            'LIFT': ['mean', 'std', 'count', lambda x: (x > min_lift).sum()],
+            'SIGNIFICANCE_LEVEL': 'mean',
+            'FILTER_ID': 'nunique'
+        }).reset_index()
+        
+        # Flatten column names
+        metric_consistency.columns = [
+            'METRIC_NAME', 'AVG_LIFT', 'STD_LIFT', 'TOTAL_OBSERVATIONS',
+            'POSITIVE_LIFT_COUNT', 'AVG_SIGNIFICANCE', 'UNIQUE_FILTERS'
+        ]
+        
+        # Calculate consistency score
+        # Higher score = more consistent across filters
+        metric_consistency['CV'] = metric_consistency['STD_LIFT'] / metric_consistency['AVG_LIFT'].abs().replace(0, np.nan)
+        metric_consistency['CONSISTENCY_SCORE'] = (
+            (metric_consistency['UNIQUE_FILTERS'] / metric_consistency['UNIQUE_FILTERS'].max()) * 0.4 +  # More filters = better
+            (1 / (1 + metric_consistency['CV'].fillna(999))) * 0.4 +  # Lower CV = better
+            (metric_consistency['POSITIVE_LIFT_COUNT'] / metric_consistency['TOTAL_OBSERVATIONS']) * 0.2  # More positive = better
+        )
+        
+        # Filter by criteria
+        consistent_signals = metric_consistency[
+            (metric_consistency['UNIQUE_FILTERS'] >= min_filters) &
+            (metric_consistency['AVG_LIFT'] >= min_lift)
+        ].copy()
+        
+        # Classify consistency
+        consistent_signals['CONSISTENCY_LEVEL'] = pd.cut(
+            consistent_signals['CONSISTENCY_SCORE'],
+            bins=[0, 0.4, 0.7, 1.0],
+            labels=['Low', 'Medium', 'High']
+        )
+        
+        # Sort by consistency score
+        consistent_signals = consistent_signals.sort_values('CONSISTENCY_SCORE', ascending=False)
+        
+        return consistent_signals
+    
+    def analyze_metric_filter_consistency(self, metric_name: Optional[str] = None) -> pd.DataFrame:
+        """
+        Analyze how a specific metric (or all metrics) performs across different filters.
+        
+        Parameters:
+        -----------
+        metric_name : str, optional
+            Specific metric to analyze. If None, analyzes all metrics.
+        
+        Returns:
+        --------
+        pd.DataFrame
+            Performance breakdown by metric and filter
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        df = self.merged_data.copy()
+        
+        # Filter by metric if specified
+        if metric_name:
+            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+        
+        # Group by metric and filter dimensions
+        consistency_analysis = df.groupby(['METRIC_NAME', 'FILTER_ID']).agg({
+            'LIFT': ['mean', 'std', 'count'],
+            'SIGNIFICANCE_LEVEL': 'mean',
+            'CHANNEL': 'first',
+            'FILTER_NAME': 'first',
+            'GROUP_NAME': 'first',
+            'TIME_PERIOD': 'first'
+        }).reset_index()
+        
+        # Flatten columns
+        consistency_analysis.columns = [
+            'METRIC_NAME', 'FILTER_ID', 'LIFT_MEAN', 'LIFT_STD', 'OBSERVATIONS',
+            'AVG_SIGNIFICANCE', 'CHANNEL', 'FILTER_NAME', 'GROUP_NAME', 'TIME_PERIOD'
+        ]
+        
+        # Calculate CV per metric-filter combination
+        consistency_analysis['CV'] = consistency_analysis['LIFT_STD'] / consistency_analysis['LIFT_MEAN'].abs().replace(0, np.nan)
+        consistency_analysis['IS_CONSISTENT'] = consistency_analysis['CV'] < 0.5
+        
+        return consistency_analysis
+    
     def identify_patterns(self, min_observations: int = 3) -> Dict:
         """
         Identify consistent patterns vs noise in lift results.
@@ -745,6 +891,10 @@ class KantarBLSAnalyzer:
         patterns['signal_metrics'] = signal_metrics
         patterns['noise_metrics'] = noise_metrics
         
+        # 5. Consistent signals across filters
+        consistent_signals = self.find_consistent_signals(min_filters=3, min_lift=0.0)
+        patterns['consistent_signals'] = consistent_signals
+        
         return patterns
     
     def generate_report(self, output_dir: str = "output") -> str:
@@ -803,13 +953,74 @@ class KantarBLSAnalyzer:
             plt.savefig(output_path / 'lift_by_channel.png', dpi=300, bbox_inches='tight')
             plt.close()
         
+        # 2. Consistent signals across filters
+        if 'consistent_signals' in patterns and len(patterns['consistent_signals']) > 0:
+            consistent = patterns['consistent_signals'].head(20)
+            
+            # Scatter plot: Consistency Score vs Average Lift
+            fig, ax = plt.subplots(figsize=(14, 8))
+            scatter = ax.scatter(
+                consistent['AVG_LIFT'],
+                consistent['CONSISTENCY_SCORE'],
+                s=consistent['UNIQUE_FILTERS'] * 10,
+                c=consistent['UNIQUE_FILTERS'],
+                cmap='viridis',
+                alpha=0.6,
+                edgecolors='black',
+                linewidth=0.5
+            )
+            ax.set_xlabel('Average Lift (%)', fontsize=12)
+            ax.set_ylabel('Consistency Score', fontsize=12)
+            ax.set_title('Consistent Signals: Metrics with Reliable Performance Across Filters', fontsize=14, fontweight='bold')
+            ax.grid(True, alpha=0.3)
+            
+            # Add metric names for top performers
+            for idx, row in consistent.head(10).iterrows():
+                ax.annotate(
+                    row['METRIC_NAME'][:40] + '...' if len(row['METRIC_NAME']) > 40 else row['METRIC_NAME'],
+                    (row['AVG_LIFT'], row['CONSISTENCY_SCORE']),
+                    fontsize=8,
+                    alpha=0.7
+                )
+            
+            # Add colorbar
+            cbar = plt.colorbar(scatter, ax=ax)
+            cbar.set_label('Number of Unique Filters', fontsize=10)
+            
+            plt.tight_layout()
+            plt.savefig(output_path / 'consistent_signals.png', dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            # Bar chart: Top consistent metrics
+            fig, ax = plt.subplots(figsize=(14, 10))
+            top_consistent = consistent.head(15)
+            y_pos = range(len(top_consistent))
+            ax.barh(y_pos, top_consistent['CONSISTENCY_SCORE'], color='steelblue')
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels([name[:60] + '...' if len(name) > 60 else name 
+                               for name in top_consistent['METRIC_NAME']], fontsize=9)
+            ax.set_xlabel('Consistency Score', fontsize=12)
+            ax.set_title('Top 15 Most Consistent Metrics Across Filters', fontsize=14, fontweight='bold')
+            ax.grid(True, alpha=0.3, axis='x')
+            
+            # Add value labels
+            for i, (idx, row) in enumerate(top_consistent.iterrows()):
+                ax.text(row['CONSISTENCY_SCORE'] + 0.01, i, 
+                       f"Lift: {row['AVG_LIFT']:.2f}% | Filters: {int(row['UNIQUE_FILTERS'])}",
+                       va='center', fontsize=8)
+            
+            plt.tight_layout()
+            plt.savefig(output_path / 'top_consistent_metrics.png', dpi=300, bbox_inches='tight')
+            plt.close()
+        
         # 2. Metric performance
         if 'metric_performance' in patterns:
             top_metrics = patterns['metric_performance'].head(15)
             fig, ax = plt.subplots(figsize=(12, 8))
             ax.barh(range(len(top_metrics)), top_metrics['MEAN_LIFT'])
             ax.set_yticks(range(len(top_metrics)))
-            ax.set_yticklabels(top_metrics['METRIC_NAME'], fontsize=8)
+            ax.set_yticklabels([name[:60] + '...' if len(name) > 60 else name 
+                               for name in top_metrics['METRIC_NAME']], fontsize=8)
             ax.set_xlabel('Average Lift (%)')
             ax.set_title('Top 15 Metrics by Average Lift')
             ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
@@ -863,6 +1074,19 @@ class KantarBLSAnalyzer:
             summary.append(f"  Metrics with high noise: {len(patterns['noise_metrics'])}\n")
             summary.append("\n")
         
+        if 'consistent_signals' in patterns and len(patterns['consistent_signals']) > 0:
+            consistent = patterns['consistent_signals']
+            top_5_consistent = consistent.head(5)
+            summary.append("Consistent Signals Across Filters:\n")
+            summary.append("  (Metrics that perform reliably across multiple filters/channels)\n")
+            for idx, row in top_5_consistent.iterrows():
+                summary.append(f"  {row['METRIC_NAME'][:60]}: "
+                             f"Lift: {row['AVG_LIFT']:.2f}%, "
+                             f"Filters: {int(row['UNIQUE_FILTERS'])}, "
+                             f"Consistency: {row['CONSISTENCY_SCORE']:.2f}\n")
+            summary.append(f"\n  Total metrics with consistent cross-filter signal: {len(consistent)}\n")
+            summary.append("\n")
+        
         return "".join(summary)
 
 
@@ -875,6 +1099,7 @@ def main():
     analyzer.load_data(use_snowflake=False)
     
     # Clean and merge (saves merged data automatically)
+    # If merged file was loaded, clean_and_merge will detect it and skip merge
     analyzer.clean_and_merge(save_merged=True)
     
     # Analyze trends
