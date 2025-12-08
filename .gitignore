@@ -13,10 +13,7 @@ ENV/
 # data/*.csv
 
 # Output files
-output/
-*.png
-*.jpg
-*.pdf
+
 
 # IDE
 .vscode/
