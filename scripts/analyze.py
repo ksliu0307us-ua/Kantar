@@ -15,14 +15,63 @@ import seaborn as sns
 from pathlib import Path
 import warnings
 import re
+import sys
 from datetime import datetime
 from typing import Dict, List, Optional
+from contextlib import contextmanager
+
+# Try to import openpyxl for Excel support (optional)
+try:
+    import openpyxl
+    EXCEL_SUPPORT = True
+except ImportError:
+    EXCEL_SUPPORT = False
 
 warnings.filterwarnings('ignore')
 
 # Set style for visualizations
 sns.set_style("whitegrid")
 plt.rcParams['figure.figsize'] = (12, 6)
+
+
+class TeeOutput:
+    """Class to tee output to both console and file."""
+    def __init__(self, file_path: Path):
+        self.file = open(file_path, 'w', encoding='utf-8')
+        self.console = sys.stdout
+        
+    def write(self, message):
+        self.console.write(message)
+        self.file.write(message)
+        self.file.flush()
+        
+    def flush(self):
+        self.console.flush()
+        self.file.flush()
+        
+    def close(self):
+        self.file.close()
+
+
+@contextmanager
+def log_to_file(file_path: Path):
+    """
+    Context manager to capture console output to a file.
+    
+    Usage:
+        with log_to_file(Path("output/analysis.log")):
+            analyzer.load_data()
+            analyzer.clean_and_merge()
+            # All print statements will be saved to the log file
+    """
+    tee = TeeOutput(file_path)
+    original_stdout = sys.stdout
+    sys.stdout = tee
+    try:
+        yield tee
+    finally:
+        sys.stdout = original_stdout
+        tee.close()
 
 
 class KantarBLSAnalyzer:
@@ -49,6 +98,8 @@ class KantarBLSAnalyzer:
         self.filter_ids = None
         self.codebook = None
         self.merged_data = None
+        self.log_file = None
+        self.log_enabled = False
         
     def load_data(self, use_snowflake: bool = False, snowflake_config: Optional[Dict] = None):
         """
@@ -331,24 +382,38 @@ class KantarBLSAnalyzer:
     def _extract_dimensions(self) -> pd.DataFrame:
         """
         Extract time, channel, and demographic dimensions from filter metadata.
+        
+        Based on Kantar API structure:
+        - Channels are in filters call, often with "XM" prefix/folder
+        - Time/date information is in filters call with "timestamp" as GROUP_NAME
+        - Multiple filter IDs can be combined for aggregated analysis
         """
         df = self.merged_data.copy()
         
         # Extract channel from GROUP_NAME or FILTER_NAME or NAME
+        # Look for "XM" prefix/folder (Kantar's channel folder structure)
         # Common channels: TV, OTT, Social, Digital, etc.
         channel_keywords = {
-            'TV': ['TV', 'television', 'broadcast'],
-            'OTT': ['OTT', 'streaming', 'hulu', 'netflix'],
-            'Social': ['social', 'facebook', 'instagram', 'twitter', 'x', 'tiktok', 'snapchat'],
-            'Digital': ['digital', 'display', 'banner', 'programmatic'],
-            'Podcast': ['podcast', 'audio'],
+            'TV': ['TV', 'television', 'broadcast', 'network'],
+            'OTT': ['OTT', 'streaming', 'hulu', 'netflix', 'amazon ctv'],
+            'Social': ['social', 'facebook', 'instagram', 'twitter', 'x', 'tiktok', 'snapchat', 'meta'],
+            'Digital': ['digital', 'display', 'banner', 'programmatic', 'trade desk', 'realm'],
+            'Podcast': ['podcast', 'audio', 'iheart', 'good karma'],
             'Radio': ['radio'],
-            'CTV': ['CTV', 'connected tv']
+            'CTV': ['CTV', 'connected tv'],
+            'Outdoor': ['billboard', 'outdoor', 'ooh']
         }
         
         def extract_channel(group_name, filter_name, name):
-            # Try FILTER_NAME first (from merged file), then NAME, then GROUP_NAME
-            text = f"{group_name} {filter_name} {name}".lower()
+            # Check for XM prefix (Kantar's channel folder structure)
+            group_lower = str(group_name).lower()
+            if 'xm' in group_lower or group_lower.startswith('xm'):
+                # Extract channel from the group name after XM prefix
+                text = f"{group_name} {filter_name} {name}".lower()
+            else:
+                # Try FILTER_NAME first (from merged file), then NAME, then GROUP_NAME
+                text = f"{group_name} {filter_name} {name}".lower()
+            
             for channel, keywords in channel_keywords.items():
                 if any(kw in text for kw in keywords):
                     return channel
@@ -398,26 +463,38 @@ class KantarBLSAnalyzer:
         """
         Extract time period labels from filter names or other fields.
         Returns a series with time period strings (e.g., "April 2025", "Q2 2025").
+        
+        Based on Kantar API: Time/date information is in filters call with 
+        "timestamp" as GROUP_NAME, containing date ranges in the NAME field.
         """
         time_periods = []
         
         for idx, row in df.iterrows():
             time_period = None
             
-            # Try FILTER_NAME first (most likely to have time info)
-            if 'FILTER_NAME' in row and pd.notna(row['FILTER_NAME']):
+            # Priority 1: Check if GROUP_NAME is "timestamp" (Kantar's time filter group)
+            # In this case, the NAME field should contain the date range
+            group_name = str(row.get('GROUP_NAME', '')).strip().lower()
+            if group_name == 'timestamp':
+                if 'NAME' in row and pd.notna(row['NAME']):
+                    time_period = self._parse_time_from_text(str(row['NAME']))
+                elif 'FILTER_NAME' in row and pd.notna(row['FILTER_NAME']):
+                    time_period = self._parse_time_from_text(str(row['FILTER_NAME']))
+            
+            # Priority 2: Try FILTER_NAME (most likely to have time info)
+            if not time_period and 'FILTER_NAME' in row and pd.notna(row['FILTER_NAME']):
                 time_period = self._parse_time_from_text(str(row['FILTER_NAME']))
             
-            # Try NAME if FILTER_NAME didn't work
+            # Priority 3: Try NAME if FILTER_NAME didn't work
             if not time_period and 'NAME' in row and pd.notna(row['NAME']):
                 time_period = self._parse_time_from_text(str(row['NAME']))
             
-            # Try SURVEY_LABEL
+            # Priority 4: Try SURVEY_LABEL
             if not time_period and 'SURVEY_LABEL' in row and pd.notna(row['SURVEY_LABEL']):
                 time_period = self._parse_time_from_text(str(row['SURVEY_LABEL']))
             
-            # Try GROUP_NAME as last resort
-            if not time_period and 'GROUP_NAME' in row and pd.notna(row['GROUP_NAME']):
+            # Priority 5: Try GROUP_NAME as last resort (if not already checked)
+            if not time_period and group_name != 'timestamp' and 'GROUP_NAME' in row and pd.notna(row['GROUP_NAME']):
                 time_period = self._parse_time_from_text(str(row['GROUP_NAME']))
             
             time_periods.append(time_period if time_period else 'Unknown')
@@ -860,12 +937,17 @@ class KantarBLSAnalyzer:
         
         patterns['channel_consistency'] = channel_consistency
         
-        # 2. Time trends
-        if 'TIME_PERIOD' in df.columns:
-            time_trends = df.groupby(['TIME_PERIOD', 'METRIC_NAME']).agg({
-                'LIFT': ['mean', 'count']
+        # 2. Time trends (enhanced for time series analysis)
+        if 'TIME_PERIOD' in df.columns or 'TIME_DATE' in df.columns:
+            time_col = 'TIME_DATE' if 'TIME_DATE' in df.columns else 'TIME_PERIOD'
+            time_trends = df.groupby([time_col, 'METRIC_NAME']).agg({
+                'LIFT': ['mean', 'std', 'count'],
+                'SIGNIFICANCE_LEVEL': 'mean',
+                'EXPOSED_POPULATION': 'sum',
+                'CONTROL_POPULATION': 'sum'
             }).reset_index()
-            time_trends.columns = ['TIME_PERIOD', 'METRIC_NAME', 'MEAN_LIFT', 'COUNT']
+            time_trends.columns = [time_col, 'METRIC_NAME', 'MEAN_LIFT', 'STD_LIFT', 'COUNT', 
+                                   'AVG_SIGNIFICANCE', 'EXPOSED_POP', 'CONTROL_POP']
             patterns['time_trends'] = time_trends
         
         # 3. Metric performance ranking
@@ -1088,6 +1170,523 @@ class KantarBLSAnalyzer:
             summary.append("\n")
         
         return "".join(summary)
+    
+    def analyze_time_series(self, metric_name: Optional[str] = None, 
+                           channel: Optional[str] = None,
+                           min_observations: int = 1) -> pd.DataFrame:
+        """
+        Perform time series analysis of brand lift metrics over time.
+        
+        Based on Kantar API: Time information comes from filters call with 
+        "timestamp" as GROUP_NAME containing date ranges.
+        
+        Parameters:
+        -----------
+        metric_name : str, optional
+            Specific metric to analyze (e.g., "Unaided Brand Awareness")
+        channel : str, optional
+            Filter by specific channel (e.g., "TV", "Social")
+        min_observations : int, default 1
+            Minimum observations per time period
+            
+        Returns:
+        --------
+        pd.DataFrame
+            Time series data with lift trends
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        df = self.merged_data.copy()
+        
+        # Filter by metric if specified
+        if metric_name:
+            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+        
+        # Filter by channel if specified
+        if channel:
+            df = df[df['CHANNEL'] == channel]
+        
+        # Use TIME_DATE if available (standardized dates), otherwise TIME_PERIOD
+        time_col = 'TIME_DATE' if 'TIME_DATE' in df.columns and df['TIME_DATE'].notna().any() else 'TIME_PERIOD'
+        
+        if time_col not in df.columns:
+            raise ValueError("No time dimension found. Ensure data has TIME_PERIOD or TIME_DATE columns.")
+        
+        # Remove unknown/None time periods
+        df = df[df[time_col].notna()]
+        if time_col == 'TIME_PERIOD':
+            df = df[df[time_col] != 'Unknown']
+        
+        # Sort by time
+        if time_col == 'TIME_DATE':
+            df = df.sort_values(time_col)
+        else:
+            df = df.sort_values(time_col)
+        
+        # Aggregate by time and metric
+        agg_dict = {
+            'LIFT': ['mean', 'std', 'count'],
+            'DELTA': 'mean',
+            'EXPOSED_PERCENT': 'mean',
+            'CONTROL_PERCENT': 'mean',
+            'SIGNIFICANCE_LEVEL': 'mean',
+            'EXPOSED_POPULATION': 'sum',
+            'CONTROL_POPULATION': 'sum'
+        }
+        
+        # Only include columns that exist
+        agg_dict = {k: v for k, v in agg_dict.items() if k in df.columns}
+        
+        group_by = [time_col, 'METRIC_NAME']
+        if 'CHANNEL' in df.columns:
+            group_by.append('CHANNEL')
+        
+        results = df.groupby(group_by).agg(agg_dict).reset_index()
+        results.columns = ['_'.join(col).strip('_') if col[1] else col[0] 
+                          for col in results.columns.values]
+        
+        # Filter by minimum observations
+        count_col = [c for c in results.columns if 'count' in c.lower()][0] if any('count' in c.lower() for c in results.columns) else None
+        if count_col:
+            results = results[results[count_col] >= min_observations]
+        
+        return results
+    
+    def analyze_by_channel(self, metric_name: Optional[str] = None,
+                          time_period: Optional[str] = None,
+                          min_observations: int = 3) -> pd.DataFrame:
+        """
+        Analyze brand lift performance by channel.
+        
+        Based on Kantar API: Channels are in filters call, often with "XM" prefix/folder.
+        
+        Parameters:
+        -----------
+        metric_name : str, optional
+            Specific metric to analyze
+        time_period : str, optional
+            Filter by specific time period (e.g., "April 2025")
+        min_observations : int, default 3
+            Minimum observations per channel
+            
+        Returns:
+        --------
+        pd.DataFrame
+            Channel performance analysis
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        df = self.merged_data.copy()
+        
+        # Filter by metric if specified
+        if metric_name:
+            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+        
+        # Filter by time period if specified
+        if time_period:
+            if 'TIME_PERIOD' in df.columns:
+                df = df[df['TIME_PERIOD'] == time_period]
+            elif 'TIME_DATE' in df.columns:
+                df = df[df['TIME_DATE'].astype(str).str.contains(time_period, case=False, na=False)]
+        
+        if 'CHANNEL' not in df.columns:
+            raise ValueError("No CHANNEL dimension found. Ensure data has been processed with _extract_dimensions().")
+        
+        # Aggregate by channel and metric
+        agg_dict = {
+            'LIFT': ['mean', 'std', 'count'],
+            'DELTA': 'mean',
+            'EXPOSED_PERCENT': 'mean',
+            'CONTROL_PERCENT': 'mean',
+            'SIGNIFICANCE_LEVEL': 'mean',
+            'EXPOSED_POPULATION': 'sum',
+            'CONTROL_POPULATION': 'sum'
+        }
+        
+        # Only include columns that exist
+        agg_dict = {k: v for k, v in agg_dict.items() if k in df.columns}
+        
+        group_by = ['CHANNEL', 'METRIC_NAME']
+        if 'TIME_PERIOD' in df.columns:
+            group_by.append('TIME_PERIOD')
+        elif 'TIME_DATE' in df.columns:
+            group_by.append('TIME_DATE')
+        
+        results = df.groupby(group_by).agg(agg_dict).reset_index()
+        results.columns = ['_'.join(col).strip('_') if col[1] else col[0] 
+                          for col in results.columns.values]
+        
+        # Filter by minimum observations
+        count_col = [c for c in results.columns if 'count' in c.lower()][0] if any('count' in c.lower() for c in results.columns) else None
+        if count_col:
+            results = results[results[count_col] >= min_observations]
+        
+        # Calculate coefficient of variation for consistency
+        mean_col = [c for c in results.columns if 'mean' in c.lower() and 'lift' in c.lower()][0] if any('mean' in c.lower() and 'lift' in c.lower() for c in results.columns) else None
+        std_col = [c for c in results.columns if 'std' in c.lower() and 'lift' in c.lower()][0] if any('std' in c.lower() and 'lift' in c.lower() for c in results.columns) else None
+        
+        if mean_col and std_col:
+            results['CV'] = results[std_col] / results[mean_col].abs().replace(0, np.nan)
+            results['IS_CONSISTENT'] = results['CV'] < 0.5
+        
+        return results
+    
+    def aggregate_filter_ids(self, filter_ids: List[int], 
+                            metric_name: Optional[str] = None,
+                            method: str = 'weighted_mean') -> pd.DataFrame:
+        """
+        Aggregate results from multiple filter IDs.
+        
+        Based on Kantar API: You can pass multiple filter IDs to the metrics call
+        to combine results (e.g., "last 7 days" + "last 3 months").
+        
+        Parameters:
+        -----------
+        filter_ids : list of int
+            List of FILTER_IDs to aggregate
+        metric_name : str, optional
+            Specific metric to analyze
+        method : str, default 'weighted_mean'
+            Aggregation method: 'weighted_mean' (by population), 'mean', or 'sum'
+            
+        Returns:
+        --------
+        pd.DataFrame
+            Aggregated results across the specified filter IDs
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        df = self.merged_data.copy()
+        
+        # Filter by specified filter IDs
+        df = df[df['FILTER_ID'].isin(filter_ids)]
+        
+        if len(df) == 0:
+            raise ValueError(f"No data found for filter IDs: {filter_ids}")
+        
+        # Filter by metric if specified
+        if metric_name:
+            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+        
+        # Aggregate based on method
+        if method == 'weighted_mean':
+            # Weight by population size
+            if 'EXPOSED_POPULATION' in df.columns and 'CONTROL_POPULATION' in df.columns:
+                df['TOTAL_POPULATION'] = df['EXPOSED_POPULATION'] + df['CONTROL_POPULATION']
+                df['WEIGHTED_LIFT'] = df['LIFT'] * df['TOTAL_POPULATION']
+                
+                results = df.groupby('METRIC_NAME').agg({
+                    'WEIGHTED_LIFT': 'sum',
+                    'TOTAL_POPULATION': 'sum',
+                    'LIFT': ['mean', 'std', 'count'],
+                    'DELTA': 'mean',
+                    'SIGNIFICANCE_LEVEL': 'mean',
+                    'EXPOSED_POPULATION': 'sum',
+                    'CONTROL_POPULATION': 'sum'
+                }).reset_index()
+                
+                results['AGGREGATED_LIFT'] = results['WEIGHTED_LIFT'] / results['TOTAL_POPULATION']
+                results = results.drop(columns=['WEIGHTED_LIFT'])
+            else:
+                method = 'mean'  # Fallback if population columns not available
+        
+        if method == 'mean':
+            results = df.groupby('METRIC_NAME').agg({
+                'LIFT': ['mean', 'std', 'count'],
+                'DELTA': 'mean',
+                'EXPOSED_PERCENT': 'mean',
+                'CONTROL_PERCENT': 'mean',
+                'SIGNIFICANCE_LEVEL': 'mean',
+                'EXPOSED_POPULATION': 'sum',
+                'CONTROL_POPULATION': 'sum'
+            }).reset_index()
+        
+        elif method == 'sum':
+            results = df.groupby('METRIC_NAME').agg({
+                'LIFT': 'sum',
+                'DELTA': 'sum',
+                'EXPOSED_POPULATION': 'sum',
+                'CONTROL_POPULATION': 'sum'
+            }).reset_index()
+        
+        # Flatten column names
+        results.columns = ['_'.join(col).strip('_') if col[1] else col[0] 
+                          for col in results.columns.values]
+        
+        # Add metadata
+        results['FILTER_IDS'] = str(filter_ids)
+        results['NUM_FILTERS'] = len(filter_ids)
+        
+        return results
+    
+    def save_analysis_results(self, results: pd.DataFrame, 
+                             filename: str,
+                             output_dir: str = "output",
+                             format: str = "csv") -> str:
+        """
+        Save analysis results to a file.
+        
+        Parameters:
+        -----------
+        results : pd.DataFrame
+            Analysis results to save
+        filename : str
+            Name of the output file (without extension)
+        output_dir : str, default "output"
+            Directory to save the file
+        format : str, default "csv"
+            File format: "csv" or "excel"
+            
+        Returns:
+        --------
+        str
+            Path to saved file
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+        
+        if format.lower() == "csv":
+            file_path = output_path / f"{filename}.csv"
+            results.to_csv(file_path, index=False)
+        elif format.lower() in ["excel", "xlsx"]:
+            if not EXCEL_SUPPORT:
+                raise ImportError("Excel support requires openpyxl. Install with: pip install openpyxl")
+            file_path = output_path / f"{filename}.xlsx"
+            results.to_excel(file_path, index=False, engine='openpyxl')
+        else:
+            raise ValueError(f"Unsupported format: {format}. Use 'csv' or 'excel'.")
+        
+        file_size = file_path.stat().st_size / (1024 * 1024)  # MB
+        print(f"✓ Saved analysis results: {file_path} ({len(results):,} rows, {file_size:.2f} MB)")
+        
+        return str(file_path)
+    
+    def save_time_series_analysis(self, 
+                                  metric_name: Optional[str] = None,
+                                  channel: Optional[str] = None,
+                                  output_dir: str = "output",
+                                  format: str = "csv") -> str:
+        """
+        Perform time series analysis and save results to file.
+        
+        Parameters:
+        -----------
+        metric_name : str, optional
+            Specific metric to analyze
+        channel : str, optional
+            Filter by specific channel
+        output_dir : str, default "output"
+            Directory to save the file
+        format : str, default "csv"
+            File format: "csv" or "excel"
+            
+        Returns:
+        --------
+        str
+            Path to saved file
+        """
+        results = self.analyze_time_series(metric_name=metric_name, channel=channel)
+        
+        # Create descriptive filename
+        filename_parts = ["time_series"]
+        if metric_name:
+            filename_parts.append(metric_name.replace(" ", "_").replace("/", "_")[:30])
+        if channel:
+            filename_parts.append(channel)
+        filename = "_".join(filename_parts) + f"_{datetime.now().strftime('%Y%m%d')}"
+        
+        return self.save_analysis_results(results, filename, output_dir, format)
+    
+    def save_channel_analysis(self,
+                              metric_name: Optional[str] = None,
+                              time_period: Optional[str] = None,
+                              output_dir: str = "output",
+                              format: str = "csv") -> str:
+        """
+        Perform channel analysis and save results to file.
+        
+        Parameters:
+        -----------
+        metric_name : str, optional
+            Specific metric to analyze
+        time_period : str, optional
+            Filter by specific time period
+        output_dir : str, default "output"
+            Directory to save the file
+        format : str, default "csv"
+            File format: "csv" or "excel"
+            
+        Returns:
+        --------
+        str
+            Path to saved file
+        """
+        results = self.analyze_by_channel(metric_name=metric_name, time_period=time_period)
+        
+        # Create descriptive filename
+        filename_parts = ["channel_analysis"]
+        if metric_name:
+            filename_parts.append(metric_name.replace(" ", "_").replace("/", "_")[:30])
+        if time_period:
+            filename_parts.append(time_period.replace(" ", "_").replace("/", "_")[:20])
+        filename = "_".join(filename_parts) + f"_{datetime.now().strftime('%Y%m%d')}"
+        
+        return self.save_analysis_results(results, filename, output_dir, format)
+    
+    def save_all_analysis_results(self, output_dir: str = "output", format: str = "csv") -> Dict[str, str]:
+        """
+        Run all analyses and save results to files.
+        
+        Parameters:
+        -----------
+        output_dir : str, default "output"
+            Directory to save files
+        format : str, default "csv"
+            File format: "csv" or "excel"
+            
+        Returns:
+        --------
+        dict
+            Dictionary mapping analysis type to file path
+        """
+        saved_files = {}
+        
+        print("\n" + "=" * 80)
+        print("SAVING ALL ANALYSIS RESULTS")
+        print("=" * 80)
+        print()
+        
+        # 1. Time series analysis
+        print("1. Saving time series analysis...")
+        try:
+            time_series = self.analyze_time_series()
+            filename = f"time_series_all_metrics_{datetime.now().strftime('%Y%m%d')}"
+            file_path = self.save_analysis_results(time_series, filename, output_dir, format)
+            saved_files['time_series'] = file_path
+        except Exception as e:
+            print(f"  Warning: Could not save time series: {str(e)}")
+        
+        # 2. Channel analysis
+        print("\n2. Saving channel analysis...")
+        try:
+            channel_analysis = self.analyze_by_channel()
+            filename = f"channel_analysis_all_metrics_{datetime.now().strftime('%Y%m%d')}"
+            file_path = self.save_analysis_results(channel_analysis, filename, output_dir, format)
+            saved_files['channel_analysis'] = file_path
+        except Exception as e:
+            print(f"  Warning: Could not save channel analysis: {str(e)}")
+        
+        # 3. Consistent signals
+        print("\n3. Saving consistent signals...")
+        try:
+            consistent_signals = self.find_consistent_signals()
+            filename = f"consistent_signals_{datetime.now().strftime('%Y%m%d')}"
+            file_path = self.save_analysis_results(consistent_signals, filename, output_dir, format)
+            saved_files['consistent_signals'] = file_path
+        except Exception as e:
+            print(f"  Warning: Could not save consistent signals: {str(e)}")
+        
+        # 4. Trend analysis
+        print("\n4. Saving trend analysis...")
+        try:
+            trends = self.analyze_trends(group_by=['CHANNEL', 'METRIC_NAME'])
+            filename = f"trends_by_channel_metric_{datetime.now().strftime('%Y%m%d')}"
+            file_path = self.save_analysis_results(trends, filename, output_dir, format)
+            saved_files['trends'] = file_path
+        except Exception as e:
+            print(f"  Warning: Could not save trends: {str(e)}")
+        
+        # 5. Significant results
+        print("\n5. Saving significant results...")
+        try:
+            significant = self.detect_significance()
+            filename = f"significant_results_{datetime.now().strftime('%Y%m%d')}"
+            file_path = self.save_analysis_results(significant, filename, output_dir, format)
+            saved_files['significant_results'] = file_path
+        except Exception as e:
+            print(f"  Warning: Could not save significant results: {str(e)}")
+        
+        # 6. Pattern analysis
+        print("\n6. Saving pattern analysis...")
+        try:
+            patterns = self.identify_patterns()
+            
+            # Save each pattern type
+            for pattern_name, pattern_data in patterns.items():
+                if isinstance(pattern_data, pd.DataFrame):
+                    filename = f"pattern_{pattern_name}_{datetime.now().strftime('%Y%m%d')}"
+                    file_path = self.save_analysis_results(pattern_data, filename, output_dir, format)
+                    saved_files[f'pattern_{pattern_name}'] = file_path
+        except Exception as e:
+            print(f"  Warning: Could not save patterns: {str(e)}")
+        
+        print("\n" + "=" * 80)
+        print(f"✓ Saved {len(saved_files)} analysis result files")
+        print("=" * 80)
+        print("\nSaved files:")
+        for analysis_type, file_path in saved_files.items():
+            print(f"  {analysis_type}: {file_path}")
+        
+        return saved_files
+    
+    def enable_logging(self, log_file: str = None, output_dir: str = "output") -> str:
+        """
+        Enable logging of all console output to a file.
+        
+        Parameters:
+        -----------
+        log_file : str, optional
+            Name of the log file. If None, auto-generates with timestamp.
+        output_dir : str, default "output"
+            Directory to save the log file
+            
+        Returns:
+        --------
+        str
+            Path to the log file
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+        
+        if log_file is None:
+            log_file = f"analysis_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        
+        log_path = output_path / log_file
+        
+        # Create TeeOutput to capture both console and file
+        self.log_file = TeeOutput(log_path)
+        self.log_enabled = True
+        
+        # Redirect stdout
+        self.original_stdout = sys.stdout
+        sys.stdout = self.log_file
+        
+        print("=" * 80)
+        print("ANALYSIS LOGGING ENABLED")
+        print("=" * 80)
+        print(f"Log file: {log_path}")
+        print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 80)
+        print()
+        
+        return str(log_path)
+    
+    def disable_logging(self):
+        """Disable logging and restore normal console output."""
+        if self.log_enabled and self.log_file:
+            print()
+            print("=" * 80)
+            print(f"Logging ended: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print("=" * 80)
+            
+            sys.stdout = self.original_stdout
+            self.log_file.close()
+            self.log_enabled = False
+            self.log_file = None
+            print("✓ Logging disabled. Console output restored.")
 
 
 def main():

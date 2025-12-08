@@ -198,6 +198,23 @@ The analysis generates files in the `output/` directory:
 
 ## Key Features
 
+### Time Series Analysis
+- Track brand lift metrics over time
+- Filter by specific metrics or channels
+- Based on Kantar API: Time information from filters call with "timestamp" as GROUP_NAME
+
+### Channel Analysis
+- Analyze performance by media channel (TV, Social, Digital, OTT, etc.)
+- Compare channel effectiveness
+- Based on Kantar API: Channels in filters call with "XM" prefix/folder structure
+
+### Multiple Filter ID Aggregation
+- Combine results from multiple filter IDs (e.g., "last 7 days" + "last 3 months")
+- Weighted aggregation by population size
+- Based on Kantar API: Can pass multiple filter IDs to metrics call
+
+See `docs/TIMESERIES_CHANNEL_ANALYSIS.md` for detailed usage examples.
+
 ### Data Cleaning
 - Automatically detects and uses pre-merged files (`bls_metrics_with_filters.csv`) if available
 - Standardizes column names and data types
@@ -338,6 +355,7 @@ See **docs/UI_GUIDE.md** for detailed instructions.
 - **docs/SAVED_DATA.md** - How saved merged data works and how to use it
 - **docs/CONSISTENT_SIGNALS.md** - How to find consistent signals across filters and metrics
 - **docs/ENRICHMENT_SCRIPT.md** - How to enrich metrics with human-readable filter names
+- **docs/TIMESERIES_CHANNEL_ANALYSIS.md** - **NEW**: Time series and channel analysis guide
 
 ## Support
 
