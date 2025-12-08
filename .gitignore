@@ -9,8 +9,10 @@ venv/
 ENV/
 .venv
 
-# Data files (optional - uncomment if you don't want to track data)
-# data/*.csv
+# Data files (exclude for privacy)
+data/*.csv
+data/*.xltx
+data/*.xlsx
 
 # Output files
 output/
