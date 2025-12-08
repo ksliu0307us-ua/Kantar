@@ -1,0 +1,71 @@
+================================================================================
+KANTAR BLS ANALYSIS REPORT
+Generated: 2025-12-08 18:28:49
+================================================================================
+
+DATA SUMMARY
+--------------------------------------------------------------------------------
+Total Observations: 47,616
+Unique Metrics: 62
+Unique Channels: 4
+Unique Time Periods: 3
+Date Range: 2025-02-01 00:00:00 to 2025-04-01 00:00:00
+
+CHANNEL PERFORMANCE
+--------------------------------------------------------------------------------
+  Any: 0.09% avg lift (11,904 observations)
+  Digital: 0.03% avg lift (11,904 observations)
+  Social: 0.06% avg lift (11,904 observations)
+  Tv: 0.11% avg lift (11,904 observations)
+
+TOP 10 METRICS BY AVERAGE LIFT
+--------------------------------------------------------------------------------
+  1. DashPass Worth: 0.20%
+  2. DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP users): 0.18%
+  3. DashPass Benefits Awareness: Max [HBO] subscription included at no extra cost: 0.16%
+  4. DashPass Benefits Awareness: Ability to add someone in your household to your DashPass membership for free: 0.16%
+  5. DashPass Benefits Awareness: Discounted rides with Lyft: 0.14%
+  6. More than Restaurant Consideration: Flowers: 0.14%
+  7. More than Restaurant Consideration: Personal Care & Beauty: 0.14%
+  8. More than Restaurant Aided Awareness: Baby Supplies: 0.12%
+  9. More than Restaurant Consideration: Packaged Food & Non-Alcoholic Beverages: 0.11%
+  10. More than Restaurant Consideration: Alcoholic Beverages: 0.11%
+
+TOP 10 CONSISTENT SIGNALS
+--------------------------------------------------------------------------------
+  1. Brand Favorability: 0.07% lift, consistency=0.96
+  2. BA MDS: Meets needs: 0.06% lift, consistency=0.92
+  3. DashPass Benefits: Consistently adds valuable perks and benefits for members: 0.07% lift, consistency=0.92
+  4. Consideration (Top 2 Box): 0.05% lift, consistency=0.92
+  5. DashPass Benefits: Makes members' lives better: 0.10% lift, consistency=0.90
+  6. Brand Familiarity: 0.03% lift, consistency=0.89
+  7. BA: Offers a wide selection of brands or stores across a variety of categories: 0.05% lift, consistency=0.89
+  8. DashPass Actions � Talked to others: 0.06% lift, consistency=0.88
+  9. BA: Is an essential part of my life: 0.09% lift, consistency=0.87
+  10. More than Restaurant Consideration: Personal Care & Beauty: 0.14% lift, consistency=0.87
+
+STATISTICAL SIGNIFICANCE
+--------------------------------------------------------------------------------
+Significant Results: 918 (1.9%)
+
+================================================================================
+END OF REPORT
+================================================================================
+aving results...
+  Saved processed data: processed_data_20251208_182849.csv
+
+Analyzing trends grouped by: ['CHANNEL', 'METRIC_CLEAN']...
+  Generated 248 trend combinations
+  Saved trends: trends_by_channel_metric_20251208_182849.csv
+
+Finding consistent signals (min_observations=3)...
+  Found 62 metrics with consistent signals
+  Saved consistent signals: consistent_signals_20251208_182849.csv
+
+Detecting significant results (alpha=0.05)...
+  Found 918 significant results (1.9%)
+  Saved significant results: significant_results_20251208_182849.csv
+
+================================================================================
+ANALYSIS COMPLETE!
+================================================================================

@@ -324,22 +324,344 @@ The foundation is solid, and as monthly data accumulates, we expect to see:
 
 ---
 
+## Data Tables & How to Use Them
+
+### Table Overview
+
+The Kantar BLS data consists of four main tables that need to be joined to create a complete analysis dataset:
+
+| Table Name | Purpose | Key Columns | Location |
+|------------|---------|-------------|----------|
+| `bls_metrics` | Aggregate lift results (control vs exposed, percent lifted) per filter_id | `FILTER_ID`, `METRIC_NAME`, `LIFT`, `DELTA`, `EXPOSED_PERCENT`, `CONTROL_PERCENT` | `marketing.kantar.bls_metrics` |
+| `kantar_bls_filter_ids` | Crosswalk between filters and surveys, contains filter metadata | `FILTER_ID`, `ID`, `GROUP_NAME`, `NAME`, `SURVEY_ID`, `SURVEY_LABEL` | `marketing_fivetran.google_sheets.kantar_bls_filter_ids` |
+| `kantar_bls_filters` | Additional filter metadata describing filters (e.g., month, channel, segment) | `ID` (this is the FILTER_ID), `GROUP_NAME`, `NAME`, `SURVEY_ID` | `marketing_fivetran.google_sheets.kantar_bls_filters` |
+| `bls_answers` | Raw user-level survey responses (coded as Q1, Q2, etc.) | `SURVEY_ID`, `Q1`, `Q2`, etc. | `marketing.kantar.bls_answers` |
+| `codebook_mapping_table` | Maps Q# codes to readable question text | `QUESTION_CODE`, `QUESTION_TEXT` | CSV file |
+
+### Key Relationships
+
+**1. Primary Join: Metrics to Filter Metadata**
+```
+bls_metrics.FILTER_ID ←→ kantar_bls_filter_ids.id
+```
+- **Purpose**: Links lift results to filter metadata (channel, time period, demographics)
+- **Join Type**: Left join (preserve all metrics, even if filter metadata missing)
+- **Use Case**: Get channel, time period, or demographic info for each metric observation
+
+**2. Secondary Join: Filter IDs to Filter Details**
+```
+kantar_bls_filter_ids.FILTER_ID ←→ kantar_bls_filters.ID
+```
+- **Purpose**: Gets additional filter details (NAME, GROUP_NAME) when available
+- **Join Type**: Left join (some filters may not have additional details)
+- **Note**: The `kantar_bls_filters` table uses `ID` as the column name, which corresponds to `FILTER_ID` in other tables. When joining, rename `ID` to `FILTER_ID` or join on `kantar_bls_filter_ids.FILTER_ID = kantar_bls_filters.ID`.
+- **Use Case**: Extract human-readable filter names and group classifications. Both tables may have `GROUP_NAME` and `NAME` columns - prefer values from `kantar_bls_filters` when available, fall back to `kantar_bls_filter_ids`.
+
+**3. Survey Response Mapping**
+```
+Use codebook_mapping_table to map QXXX → readable question text in bls_answers
+```
+- **Purpose**: Decode user-level survey responses from coded format (Q1, Q2) to readable questions
+- **Join Type**: Lookup/mapping (not a direct join)
+- **Use Case**: Analyze individual user responses or create custom metrics
+
+### Common Use Cases
+
+#### Use Case 1: Get Lift by Channel
+**Goal**: Calculate average lift for each metric by channel
+
+**Steps**:
+1. Join `bls_metrics` → `kantar_bls_filter_ids` on `FILTER_ID`
+2. Extract channel from `GROUP_NAME` or `NAME` (look for "XM" prefix or channel keywords)
+3. Group by `METRIC_NAME` and `CHANNEL`
+4. Calculate average `LIFT`
+
+#### Use Case 2: Time Series Analysis
+**Goal**: Track metric performance over time
+
+**Steps**:
+1. Join `bls_metrics` → `kantar_bls_filter_ids` on `FILTER_ID`
+2. Extract time period from `NAME` or `FILTER_NAME` (look for "timestamp" GROUP_NAME or date patterns)
+3. Parse dates to standardized format (YYYY-MM-DD)
+4. Group by `METRIC_NAME` and `TIME_PERIOD`
+5. Calculate average `LIFT` per time period
+
+#### Use Case 3: Demographic Analysis
+**Goal**: Compare lift across demographic segments
+
+**Steps**:
+1. Join `bls_metrics` → `kantar_bls_filter_ids` on `FILTER_ID`
+2. Extract demographic from `GROUP_NAME` or `NAME` (look for demographic keywords)
+3. Group by `METRIC_NAME` and `DEMOGRAPHIC`
+4. Calculate average `LIFT` per demographic
+
+#### Use Case 4: User-Level Analysis
+**Goal**: Analyze individual survey responses
+
+**Steps**:
+1. Load `bls_answers` (may be large, use chunking)
+2. Use `codebook_mapping_table` to decode Q# columns
+3. Join to `kantar_bls_filter_ids` on `SURVEY_ID` to get filter context
+4. Calculate custom metrics or segmentations
+
+### Data Quality Considerations
+
+**Missing Data**:
+- Some `FILTER_ID`s may not have corresponding entries in `kantar_bls_filter_ids`
+- Some filters may not have entries in `kantar_bls_filters`
+- Handle with left joins and null checks
+
+**Filter Naming Inconsistencies**:
+- Channel names may vary (e.g., "TV" vs "Television" vs "XM: 3. TV")
+- Use keyword matching and standardization logic
+- Consider creating a channel mapping table for consistency
+
+**Time Period Formats**:
+- Dates may be in various formats (e.g., "April 2025", "Q2 2025", "2025-04-01")
+- Implement robust date parsing logic
+- Standardize to YYYY-MM-DD format for analysis
+
 ## Appendix
 
-### Files Generated
+### A. SQL Queries for Common Analyses
+
+#### Query 1: Basic Metrics with Filter Metadata
+```sql
+-- Get all lift metrics with filter metadata
+SELECT 
+    m.FILTER_ID,
+    m.METRIC_NAME,
+    m.LIFT,
+    m.DELTA,
+    m.EXPOSED_PERCENT,
+    m.CONTROL_PERCENT,
+    m.EXPOSED_POPULATION,
+    m.CONTROL_POPULATION,
+    m.SIGNIFICANCE_LEVEL,
+    fi.GROUP_NAME,
+    fi.NAME AS FILTER_NAME,
+    fi.SURVEY_ID,
+    fi.SURVEY_LABEL
+FROM marketing.kantar.bls_metrics m
+LEFT JOIN marketing_fivetran.google_sheets.kantar_bls_filter_ids fi
+    ON m.FILTER_ID = fi.id
+ORDER BY m.METRIC_NAME, m.LIFT DESC;
+```
+
+**Notes**:
+- Uses LEFT JOIN to preserve all metrics even if filter metadata is missing
+- `SIGNIFICANCE_LEVEL` is the p-value from Kantar (lower = more significant)
+- `LIFT` is calculated as: `(EXPOSED_PERCENT - CONTROL_PERCENT) / CONTROL_PERCENT * 100`
+
+#### Query 2: Average Lift by Channel
+```sql
+-- Calculate average lift by channel (extracted from GROUP_NAME)
+WITH channel_extracted AS (
+    SELECT 
+        m.METRIC_NAME,
+        m.LIFT,
+        CASE 
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%TV%' OR UPPER(fi.NAME) LIKE '%TV%' THEN 'TV'
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%SOCIAL%' OR UPPER(fi.NAME) LIKE '%SOCIAL%' THEN 'Social'
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%DIGITAL%' OR UPPER(fi.NAME) LIKE '%DIGITAL%' THEN 'Digital'
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%OTT%' OR UPPER(fi.NAME) LIKE '%OTT%' THEN 'OTT'
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%PODCAST%' OR UPPER(fi.NAME) LIKE '%PODCAST%' THEN 'Podcast'
+            ELSE 'Other'
+        END AS CHANNEL
+    FROM marketing.kantar.bls_metrics m
+    LEFT JOIN marketing_fivetran.google_sheets.kantar_bls_filter_ids fi
+        ON m.FILTER_ID = fi.id
+    WHERE m.LIFT IS NOT NULL
+)
+SELECT 
+    CHANNEL,
+    METRIC_NAME,
+    AVG(LIFT) AS AVG_LIFT,
+    STDDEV(LIFT) AS STD_LIFT,
+    COUNT(*) AS OBSERVATIONS
+FROM channel_extracted
+WHERE CHANNEL != 'Other'
+GROUP BY CHANNEL, METRIC_NAME
+HAVING COUNT(*) >= 3  -- Minimum observations for reliability
+ORDER BY CHANNEL, AVG_LIFT DESC;
+```
+
+**Notes**:
+- Channel extraction uses keyword matching (adjust patterns based on actual Kantar naming)
+- Filters out "Other" channel to focus on known channels
+- Requires minimum 3 observations per channel-metric combination for reliability
+- Consider creating a channel mapping table for more accurate extraction
+
+#### Query 3: Time Series Analysis
+```sql
+-- Extract time periods and calculate lift over time
+WITH time_extracted AS (
+    SELECT 
+        m.METRIC_NAME,
+        m.LIFT,
+        m.FILTER_ID,
+        -- Extract date from NAME field (adjust pattern based on actual format)
+        CASE 
+            WHEN fi.GROUP_NAME = 'timestamp' THEN 
+                TRY_TO_DATE(REGEXP_SUBSTR(fi.NAME, '\\d{1,2}/\\d{1,2}/\\d{2,4}'), 'MM/DD/YYYY')
+            ELSE NULL
+        END AS TIME_DATE
+    FROM marketing.kantar.bls_metrics m
+    LEFT JOIN marketing_fivetran.google_sheets.kantar_bls_filter_ids fi
+        ON m.FILTER_ID = fi.id
+    WHERE m.LIFT IS NOT NULL
+)
+SELECT 
+    METRIC_NAME,
+    TIME_DATE,
+    AVG(LIFT) AS AVG_LIFT,
+    STDDEV(LIFT) AS STD_LIFT,
+    COUNT(*) AS OBSERVATIONS
+FROM time_extracted
+WHERE TIME_DATE IS NOT NULL
+GROUP BY METRIC_NAME, TIME_DATE
+ORDER BY METRIC_NAME, TIME_DATE;
+```
+
+**Notes**:
+- Time extraction assumes "timestamp" GROUP_NAME contains date in NAME field
+- Date format may vary - adjust `TRY_TO_DATE` pattern accordingly
+- Filters out NULL dates to focus on time-series data
+- Consider monthly aggregation if daily data is too granular
+
+#### Query 4: Consistent Signals Across Filters
+```sql
+-- Find metrics with consistent lift across multiple filters
+WITH metric_stats AS (
+    SELECT 
+        m.METRIC_NAME,
+        AVG(m.LIFT) AS AVG_LIFT,
+        STDDEV(m.LIFT) AS STD_LIFT,
+        COUNT(DISTINCT m.FILTER_ID) AS UNIQUE_FILTERS,
+        COUNT(*) AS TOTAL_OBSERVATIONS,
+        SUM(CASE WHEN m.LIFT > 0 THEN 1 ELSE 0 END) AS POSITIVE_LIFT_COUNT
+    FROM marketing.kantar.bls_metrics m
+    WHERE m.LIFT IS NOT NULL
+    GROUP BY m.METRIC_NAME
+)
+SELECT 
+    METRIC_NAME,
+    AVG_LIFT,
+    STD_LIFT,
+    CASE 
+        WHEN AVG_LIFT != 0 THEN STD_LIFT / ABS(AVG_LIFT)
+        ELSE NULL
+    END AS COEFFICIENT_OF_VARIATION,
+    UNIQUE_FILTERS,
+    TOTAL_OBSERVATIONS,
+    POSITIVE_LIFT_COUNT,
+    CAST(POSITIVE_LIFT_COUNT AS FLOAT) / TOTAL_OBSERVATIONS AS POSITIVE_LIFT_RATIO,
+    -- Consistency score (simplified version)
+    (UNIQUE_FILTERS / 100.0 * 0.4) +  -- Normalized filter count
+    (1.0 / (1.0 + COALESCE(STD_LIFT / NULLIF(ABS(AVG_LIFT), 0), 999)) * 0.4) +  -- Inverse CV
+    (CAST(POSITIVE_LIFT_COUNT AS FLOAT) / TOTAL_OBSERVATIONS * 0.2) AS CONSISTENCY_SCORE
+FROM metric_stats
+WHERE UNIQUE_FILTERS >= 3  -- Minimum filters for consistency
+ORDER BY CONSISTENCY_SCORE DESC, AVG_LIFT DESC;
+```
+
+**Notes**:
+- Consistency score combines: filter count (40%), inverse CV (40%), positive lift ratio (20%)
+- Higher score = more consistent across filters
+- Adjust thresholds (UNIQUE_FILTERS >= 3) based on data volume
+- Coefficient of Variation (CV) < 50% indicates consistent signal
+
+#### Query 5: Channel Performance Comparison
+```sql
+-- Compare channel performance for specific metrics
+WITH channel_metrics AS (
+    SELECT 
+        m.METRIC_NAME,
+        m.LIFT,
+        CASE 
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%TV%' OR UPPER(fi.NAME) LIKE '%TV%' THEN 'TV'
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%SOCIAL%' OR UPPER(fi.NAME) LIKE '%SOCIAL%' THEN 'Social'
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%DIGITAL%' OR UPPER(fi.NAME) LIKE '%DIGITAL%' THEN 'Digital'
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%OTT%' OR UPPER(fi.NAME) LIKE '%OTT%' THEN 'OTT'
+            WHEN UPPER(fi.GROUP_NAME) LIKE '%PODCAST%' OR UPPER(fi.NAME) LIKE '%PODCAST%' THEN 'Podcast'
+            ELSE 'Other'
+        END AS CHANNEL
+    FROM marketing.kantar.bls_metrics m
+    LEFT JOIN marketing_fivetran.google_sheets.kantar_bls_filter_ids fi
+        ON m.FILTER_ID = fi.id
+    WHERE m.LIFT IS NOT NULL
+        AND m.METRIC_NAME IN (
+            'Unaided Brand Awareness (Any Mention)',
+            'Brand Favorability',
+            'DashPass Aided Awareness'
+            -- Add other metrics of interest
+        )
+)
+SELECT 
+    CHANNEL,
+    METRIC_NAME,
+    AVG(LIFT) AS AVG_LIFT,
+    STDDEV(LIFT) AS STD_LIFT,
+    COUNT(*) AS OBSERVATIONS,
+    MIN(LIFT) AS MIN_LIFT,
+    MAX(LIFT) AS MAX_LIFT
+FROM channel_metrics
+WHERE CHANNEL != 'Other'
+GROUP BY CHANNEL, METRIC_NAME
+HAVING COUNT(*) >= 3
+ORDER BY METRIC_NAME, AVG_LIFT DESC;
+```
+
+**Notes**:
+- Filters to specific metrics of interest (customize list)
+- Provides min/max lift for range analysis
+- Requires minimum 3 observations per channel-metric combination
+- Use for channel strategy decisions
+
+#### Query 6: Significant Results Only
+```sql
+-- Get only statistically significant lift results
+SELECT 
+    m.METRIC_NAME,
+    m.LIFT,
+    m.DELTA,
+    m.SIGNIFICANCE_LEVEL,
+    m.EXPOSED_PERCENT,
+    m.CONTROL_PERCENT,
+    m.EXPOSED_POPULATION,
+    m.CONTROL_POPULATION,
+    fi.GROUP_NAME,
+    fi.NAME AS FILTER_NAME
+FROM marketing.kantar.bls_metrics m
+LEFT JOIN marketing_fivetran.google_sheets.kantar_bls_filter_ids fi
+    ON m.FILTER_ID = fi.id
+WHERE m.SIGNIFICANCE_LEVEL <= 0.05  -- p-value <= 0.05 (95% confidence)
+    AND m.LIFT > 0  -- Only positive lift
+    AND m.EXPOSED_POPULATION >= 100  -- Minimum sample size
+    AND m.CONTROL_POPULATION >= 100
+ORDER BY m.SIGNIFICANCE_LEVEL ASC, m.LIFT DESC;
+```
+
+**Notes**:
+- `SIGNIFICANCE_LEVEL` is p-value (lower = more significant)
+- Filters to p ≤ 0.05 for 95% confidence
+- Includes sample size filters for reliability
+- Focuses on positive lift (adjust if negative lift is of interest)
+
+### B. Files Generated
 - Analysis reports: `output/kantar_bls_report_YYYYMMDD.txt`
 - Consistent signals: `output/consistent_signals_across_filters.csv`
 - Visualizations: `output/*.png` (charts and heatmaps)
 - Enriched data: `output/bls_metrics_enriched.csv`
 
-### Documentation Available
+### C. Documentation Available
 - `docs/DESIGN_DOCUMENTATION.md` - Technical architecture and design decisions
 - `docs/RESULTS_INTERPRETATION.md` - How to read and understand results
 - `docs/UI_GUIDE.md` - Web UI usage instructions
 - `docs/CONSISTENT_SIGNALS.md` - Explanation of consistency scoring
 - `docs/STANDUP_REPORT.md` - Conversational project summary
 
-### Contact & Support
+### D. Contact & Support
 For questions, demos, or technical support, please reach out to the project team.
 
 ---
