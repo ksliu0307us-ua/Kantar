@@ -52,8 +52,12 @@ if 'analyzer' not in st.session_state:
     st.session_state.analyzer = None
 if 'merged_data' not in st.session_state:
     st.session_state.merged_data = None
-if 'patterns' not in st.session_state:
-    st.session_state.patterns = None
+if 'stability' not in st.session_state:
+    st.session_state.stability = None
+if 'ts_data' not in st.session_state:
+    st.session_state.ts_data = None
+if 'filter_results' not in st.session_state:
+    st.session_state.filter_results = None
 
 def main():
     """Main application."""
@@ -145,15 +149,15 @@ def show_home():
             st.info("⏳ No Data Loaded")
     
     with col2:
-        if st.session_state.patterns is not None:
+        if st.session_state.stability is not None:
             st.success("✅ Analysis Complete")
         else:
             st.info("⏳ Analysis Pending")
     
     with col3:
         data_dir = Path(__file__).parent.parent / "data"
-        if (data_dir / "bls_metrics_with_filters.csv").exists():
-            st.success("✅ Pre-merged File Available")
+        if (data_dir / "kantar_bls_transformed_data.csv").exists():
+            st.success("✅ Transformed Data Available")
         else:
             st.warning("⚠️ Using Individual Files")
 
@@ -171,10 +175,10 @@ def show_data_loading():
     st.subheader("Available Files")
     
     required_files = [
+        "kantar_bls_transformed_data.csv",
         "bls_metrics.csv",
-        "bls_metrics_with_filters.csv",
-        "kantar_bls_filters.csv",
-        "kantar_bls_filter_ids.csv"
+        "kantar_bls_filter_ids.csv",
+        "kantar_bls_filters.csv"
     ]
     
     col1, col2 = st.columns(2)
@@ -211,8 +215,8 @@ def show_data_loading():
     if st.button("🔄 Load Data", type="primary", use_container_width=True):
         with st.spinner("Loading data..."):
             try:
-                analyzer = KantarBLSAnalyzer()
-                analyzer.load_data(use_snowflake=False)
+                analyzer = ComprehensiveBLSAnalyzer()
+                analyzer.load_all_data()
                 st.session_state.analyzer = analyzer
                 st.success("✅ Data loaded successfully!")
                 st.rerun()
@@ -227,15 +231,17 @@ def show_data_loading():
         
         analyzer = st.session_state.analyzer
         
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
-            st.metric("Metrics", f"{len(analyzer.metrics):,}" if analyzer.metrics is not None else "0")
+            st.metric("Transformed Data", f"{len(analyzer.transformed_data):,}" if analyzer.transformed_data is not None else "0")
         with col2:
-            st.metric("Answers", f"{len(analyzer.answers):,}" if analyzer.answers is not None else "0")
+            st.metric("Metrics", f"{len(analyzer.metrics):,}" if analyzer.metrics is not None else "0")
         with col3:
-            st.metric("Filters", f"{len(analyzer.filters):,}" if analyzer.filters is not None else "0")
+            st.metric("Answers", f"{len(analyzer.answers):,}" if analyzer.answers is not None else "0")
         with col4:
+            st.metric("Filters", f"{len(analyzer.filters):,}" if analyzer.filters is not None else "0")
+        with col5:
             st.metric("Filter IDs", f"{len(analyzer.filter_ids):,}" if analyzer.filter_ids is not None else "0")
 
 def show_analysis():
@@ -246,15 +252,15 @@ def show_analysis():
         st.warning("⚠️ Please load data first in the Data Loading section.")
         return
     
-    st.subheader("Step 1: Clean and Merge Data")
+    st.subheader("Step 1: Clean and Standardize Data")
     
-    if st.button("🧹 Clean and Merge", type="primary", use_container_width=True):
-        with st.spinner("Cleaning and merging data..."):
+    if st.button("🧹 Clean and Standardize", type="primary", use_container_width=True):
+        with st.spinner("Cleaning and standardizing data..."):
             try:
                 analyzer = st.session_state.analyzer
-                analyzer.clean_and_merge()
+                analyzer.clean_and_standardize()
                 st.session_state.merged_data = analyzer.merged_data
-                st.success("✅ Data cleaned and merged!")
+                st.success("✅ Data cleaned and standardized!")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
@@ -262,39 +268,31 @@ def show_analysis():
     
     if st.session_state.merged_data is not None:
         st.markdown("---")
-        st.subheader("Step 2: Run Analysis")
+        st.subheader("Step 2: Run Time Series Analysis")
         
-        # Analysis options
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            analyze_trends = st.checkbox("Analyze Trends", value=True)
-            detect_significance = st.checkbox("Detect Significance", value=True)
-        
-        with col2:
-            identify_patterns = st.checkbox("Identify Patterns", value=True)
-            min_observations = st.number_input("Min Observations for Patterns", min_value=1, value=3)
-        
-        if st.button("🚀 Run Analysis", type="primary", use_container_width=True):
-            with st.spinner("Running analysis..."):
+        if st.button("📊 Run Time Series Analysis", type="primary", use_container_width=True):
+            with st.spinner("Running time series analysis..."):
                 try:
                     analyzer = st.session_state.analyzer
-                    patterns = {}
-                    
-                    if analyze_trends:
-                        trends = analyzer.analyze_trends(group_by=['CHANNEL', 'METRIC_NAME'])
-                        patterns['trends'] = trends
-                    
-                    if detect_significance:
-                        significant = analyzer.detect_significance(alpha=0.05)
-                        patterns['significant'] = significant
-                    
-                    if identify_patterns:
-                        pattern_results = analyzer.identify_patterns(min_observations=min_observations)
-                        patterns.update(pattern_results)
-                    
-                    st.session_state.patterns = patterns
-                    st.success("✅ Analysis complete!")
+                    stability, ts_data = analyzer.time_series_analysis()
+                    st.session_state.stability = stability
+                    st.session_state.ts_data = ts_data
+                    st.success("✅ Time series analysis complete!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+                    st.exception(e)
+        
+        st.markdown("---")
+        st.subheader("Step 3: Run Filter-Level Analysis")
+        
+        if st.button("🔍 Run Filter Analysis", type="primary", use_container_width=True):
+            with st.spinner("Running filter-level analysis..."):
+                try:
+                    analyzer = st.session_state.analyzer
+                    filter_results = analyzer.filter_level_analysis()
+                    st.session_state.filter_results = filter_results
+                    st.success("✅ Filter analysis complete!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
@@ -310,9 +308,15 @@ def show_analysis():
         with col1:
             st.metric("Total Rows", f"{len(df):,}")
         with col2:
-            st.metric("Unique Filters", f"{df['FILTER_ID'].nunique():,}")
+            if 'METRIC_NAME' in df.columns:
+                st.metric("Unique Metrics", f"{df['METRIC_NAME'].nunique():,}")
+            else:
+                st.metric("Unique Metrics", "N/A")
         with col3:
-            st.metric("Unique Metrics", f"{df['METRIC_ID'].nunique():,}")
+            if 'CHANNEL' in df.columns:
+                st.metric("Unique Channels", f"{df['CHANNEL'].nunique():,}")
+            else:
+                st.metric("Unique Channels", "N/A")
         
         # Show sample data
         if st.checkbox("Show Sample Data"):
@@ -322,92 +326,125 @@ def show_results():
     """Results display."""
     st.header("📈 Analysis Results")
     
-    if st.session_state.patterns is None:
-        st.warning("⚠️ Please run analysis first in the Analysis section.")
+    if st.session_state.stability is None:
+        st.warning("⚠️ Please run time series analysis first in the Analysis section.")
         return
     
-    patterns = st.session_state.patterns
+    stability = st.session_state.stability
+    ts_data = st.session_state.ts_data
+    filter_results = st.session_state.filter_results
     
     # Tabs for different result types
-    tab1, tab2, tab3, tab4 = st.tabs(["Trends", "Significant Results", "Patterns", "Signal vs Noise"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Stability Analysis", "Time Series Data", "Filter Analysis", "Signal vs Noise"])
     
     with tab1:
-        if 'trends' in patterns:
-            st.subheader("Trend Analysis")
-            trends_df = patterns['trends']
-            st.dataframe(trends_df, use_container_width=True)
+        if stability is not None and len(stability) > 0:
+            st.subheader("Metric Stability Analysis")
             
-            # Download button
-            csv = trends_df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Trends CSV",
-                data=csv,
-                file_name=f"trends_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv"
-            )
-        else:
-            st.info("Run trend analysis to see results here.")
-    
-    with tab2:
-        if 'significant' in patterns:
-            st.subheader("Statistically Significant Results")
-            sig_df = patterns['significant']
+            # Find metric column name
+            metric_col = 'METRIC_NAME' if 'METRIC_NAME' in stability.columns else ('METRIC' if 'METRIC' in stability.columns else 'metric_name')
             
             # Filter options
             col1, col2 = st.columns(2)
             with col1:
-                min_lift = st.number_input("Min Lift (%)", value=-100.0, step=1.0)
+                min_stability = st.slider("Min Stability Score", 0.0, 1.0, 0.0, 0.01)
             with col2:
-                only_sig = st.checkbox("Only Significant", value=True)
+                signal_type_filter = st.selectbox("Signal Type", ["All", "Signal", "Uncertain", "Noise"])
             
             # Filter data
-            filtered = sig_df.copy()
-            if only_sig and 'IS_SIGNIFICANT' in filtered.columns:
-                filtered = filtered[filtered['IS_SIGNIFICANT'] == True]
-            filtered = filtered[filtered['LIFT'] >= min_lift]
+            filtered = stability[stability['stability_score'] >= min_stability].copy()
+            if signal_type_filter != "All" and 'signal_type' in filtered.columns:
+                filtered = filtered[filtered['signal_type'] == signal_type_filter]
             
-            st.metric("Significant Results", len(filtered))
+            st.metric("Filtered Results", len(filtered))
             st.dataframe(filtered.head(500), use_container_width=True)
             
-            # Download
+            # Download button
             csv = filtered.to_csv(index=False)
             st.download_button(
-                label="📥 Download Significant Results CSV",
+                label="📥 Download Stability Analysis CSV",
                 data=csv,
-                file_name=f"significant_results_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"stability_analysis_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv"
             )
         else:
-            st.info("Run significance detection to see results here.")
+            st.info("Run time series analysis to see results here.")
+    
+    with tab2:
+        if ts_data is not None and len(ts_data) > 0:
+            st.subheader("Time Series Data")
+            
+            # Find metric column name
+            metric_col = 'METRIC_NAME' if 'METRIC_NAME' in ts_data.columns else ('METRIC' if 'METRIC' in ts_data.columns else 'metric_name')
+            time_col = 'timestamp' if 'timestamp' in ts_data.columns else None
+            
+            if metric_col and metric_col in ts_data.columns:
+                # Metric selector
+                metrics_list = sorted(ts_data[metric_col].unique())
+                selected_metric = st.selectbox("Select Metric", metrics_list)
+                
+                metric_ts = ts_data[ts_data[metric_col] == selected_metric].sort_values(time_col if time_col else metric_col)
+                st.dataframe(metric_ts, use_container_width=True)
+                
+                # Download button
+                csv = metric_ts.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Time Series CSV",
+                    data=csv,
+                    file_name=f"time_series_{selected_metric[:50]}_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.dataframe(ts_data.head(500), use_container_width=True)
+        else:
+            st.info("Run time series analysis to see results here.")
     
     with tab3:
-        if 'channel_consistency' in patterns:
-            st.subheader("Channel Consistency")
-            channel_df = patterns['channel_consistency']
-            st.dataframe(channel_df, use_container_width=True)
+        if filter_results is not None and len(filter_results) > 0:
+            st.subheader("Filter-Level Analysis")
+            
+            filter_type = st.selectbox("Select Filter Type", list(filter_results.keys()))
+            
+            if filter_type in filter_results:
+                results = filter_results[filter_type]
+                
+                st.markdown(f"**Analysis by {filter_type}**")
+                
+                if 'by_filter' in results:
+                    st.dataframe(results['by_filter'].head(500), use_container_width=True)
+                
+                st.markdown("---")
+                st.markdown(f"**Stability by {filter_type}**")
+                
+                if 'stability' in results:
+                    st.dataframe(results['stability'], use_container_width=True)
         else:
-            st.info("Run pattern identification to see results here.")
+            st.info("Run filter-level analysis to see results here.")
     
     with tab4:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Signal Metrics")
-            if 'signal_metrics' in patterns:
-                signal_df = patterns['signal_metrics']
-                st.metric("Count", len(signal_df))
-                st.dataframe(signal_df.head(20), use_container_width=True)
-            else:
-                st.info("No signal metrics identified.")
-        
-        with col2:
-            st.subheader("Noise Metrics")
-            if 'noise_metrics' in patterns:
-                noise_df = patterns['noise_metrics']
-                st.metric("Count", len(noise_df))
-                st.dataframe(noise_df.head(20), use_container_width=True)
-            else:
-                st.info("No noise metrics identified.")
+        if stability is not None and len(stability) > 0:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Signal Metrics")
+                signal_metrics = stability[stability['signal_type'] == 'Signal'] if 'signal_type' in stability.columns else pd.DataFrame()
+                if len(signal_metrics) > 0:
+                    metric_col = 'METRIC_NAME' if 'METRIC_NAME' in signal_metrics.columns else ('METRIC' if 'METRIC' in signal_metrics.columns else 'metric_name')
+                    st.metric("Count", len(signal_metrics))
+                    st.dataframe(signal_metrics.head(20), use_container_width=True)
+                else:
+                    st.info("No signal metrics identified.")
+            
+            with col2:
+                st.subheader("Noise Metrics")
+                noise_metrics = stability[stability['signal_type'] == 'Noise'] if 'signal_type' in stability.columns else pd.DataFrame()
+                if len(noise_metrics) > 0:
+                    st.metric("Count", len(noise_metrics))
+                    st.dataframe(noise_metrics.head(20), use_container_width=True)
+                else:
+                    st.info("No noise metrics identified.")
+        else:
+            st.info("Run time series analysis to see signal vs noise classification.")
 
 def show_visualizations():
     """Visualizations."""
@@ -419,6 +456,15 @@ def show_visualizations():
     
     df = st.session_state.merged_data
     
+    # Find column names
+    metric_col = 'METRIC_NAME' if 'METRIC_NAME' in df.columns else ('METRIC' if 'METRIC' in df.columns else 'metric_name')
+    lift_col = 'LIFT' if 'LIFT' in df.columns else ('lift' if 'lift' in df.columns else None)
+    channel_col = 'CHANNEL' if 'CHANNEL' in df.columns else ('channel' if 'channel' in df.columns else None)
+    
+    if not lift_col or lift_col not in df.columns:
+        st.error("⚠️ Lift column not found in data.")
+        return
+    
     # Visualization options
     viz_type = st.selectbox(
         "Select Visualization",
@@ -426,80 +472,86 @@ def show_visualizations():
     )
     
     if viz_type == "Lift by Channel":
-        st.subheader("Average Lift by Channel")
-        
-        channel_lift = df.groupby('CHANNEL')['LIFT'].mean().sort_values()
-        
-        fig, ax = plt.subplots(figsize=(10, 6))
-        channel_lift.plot(kind='barh', ax=ax, color='steelblue')
-        ax.set_xlabel('Average Lift (%)')
-        ax.set_title('Average Brand Lift by Channel')
-        ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
-        plt.tight_layout()
-        st.pyplot(fig)
-    
-    elif viz_type == "Top Metrics":
-        st.subheader("Top Metrics by Average Lift")
-        
-        n_metrics = st.slider("Number of Metrics", 5, 30, 15)
-        
-        metric_lift = df.groupby('METRIC_NAME')['LIFT'].mean().sort_values(ascending=False).head(n_metrics)
-        
-        fig, ax = plt.subplots(figsize=(12, max(6, n_metrics * 0.4)))
-        ax.barh(range(len(metric_lift)), metric_lift.values)
-        ax.set_yticks(range(len(metric_lift)))
-        ax.set_yticklabels(metric_lift.index, fontsize=9)
-        ax.set_xlabel('Average Lift (%)')
-        ax.set_title(f'Top {n_metrics} Metrics by Average Lift')
-        ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
-        plt.tight_layout()
-        st.pyplot(fig)
-    
-    elif viz_type == "Lift Heatmap":
-        st.subheader("Lift Heatmap: Metrics by Channel")
-        
-        # Create pivot table
-        pivot = df.pivot_table(
-            index='METRIC_NAME',
-            columns='CHANNEL',
-            values='LIFT',
-            aggfunc='mean'
-        )
-        
-        if not pivot.empty:
-            fig, ax = plt.subplots(figsize=(14, max(8, len(pivot) * 0.3)))
-            sns.heatmap(pivot, annot=True, fmt='.1f', cmap='RdYlGn', center=0, ax=ax, cbar_kws={'label': 'Lift (%)'})
-            ax.set_title('Lift Heatmap: Metrics by Channel')
-            ax.set_xlabel('Channel')
-            ax.set_ylabel('Metric')
+        if channel_col and channel_col in df.columns:
+            st.subheader("Average Lift by Channel")
+            
+            channel_lift = df.groupby(channel_col)[lift_col].mean().sort_values()
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            channel_lift.plot(kind='barh', ax=ax, color='steelblue')
+            ax.set_xlabel('Average Lift (%)')
+            ax.set_title('Average Brand Lift by Channel')
+            ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
             plt.tight_layout()
             st.pyplot(fig)
         else:
-            st.warning("Not enough data for heatmap.")
+            st.warning("Channel column not found in data.")
+    
+    elif viz_type == "Top Metrics":
+        if metric_col and metric_col in df.columns:
+            st.subheader("Top Metrics by Average Lift")
+            
+            n_metrics = st.slider("Number of Metrics", 5, 30, 15)
+            
+            metric_lift = df.groupby(metric_col)[lift_col].mean().sort_values(ascending=False).head(n_metrics)
+            
+            fig, ax = plt.subplots(figsize=(12, max(6, n_metrics * 0.4)))
+            ax.barh(range(len(metric_lift)), metric_lift.values)
+            ax.set_yticks(range(len(metric_lift)))
+            ax.set_yticklabels(metric_lift.index, fontsize=9)
+            ax.set_xlabel('Average Lift (%)')
+            ax.set_title(f'Top {n_metrics} Metrics by Average Lift')
+            ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.warning("Metric column not found in data.")
+    
+    elif viz_type == "Lift Heatmap":
+        if channel_col and metric_col and channel_col in df.columns and metric_col in df.columns:
+            st.subheader("Lift Heatmap: Metrics by Channel")
+            
+            # Create pivot table
+            pivot = df.pivot_table(
+                index=metric_col,
+                columns=channel_col,
+                values=lift_col,
+                aggfunc='mean'
+            )
+            
+            if not pivot.empty:
+                fig, ax = plt.subplots(figsize=(14, max(8, len(pivot) * 0.3)))
+                sns.heatmap(pivot, annot=True, fmt='.1f', cmap='RdYlGn', center=0, ax=ax, cbar_kws={'label': 'Lift (%)'})
+                ax.set_title('Lift Heatmap: Metrics by Channel')
+                ax.set_xlabel('Channel')
+                ax.set_ylabel('Metric')
+                plt.tight_layout()
+                st.pyplot(fig)
+            else:
+                st.warning("Not enough data for heatmap.")
+        else:
+            st.warning("Required columns (channel, metric) not found in data.")
     
     elif viz_type == "Custom Analysis":
         st.subheader("Custom Analysis")
         
-        col1, col2 = st.columns(2)
+        available_cols = [col for col in df.columns if col not in [lift_col]]
+        group_by = st.multiselect(
+            "Group By",
+            available_cols,
+            default=[channel_col] if channel_col and channel_col in available_cols else []
+        )
         
-        with col1:
-            group_by = st.multiselect(
-                "Group By",
-                ['CHANNEL', 'METRIC_NAME', 'DEMOGRAPHIC', 'TIME_PERIOD'],
-                default=['CHANNEL']
-            )
-        
-        with col2:
-            metric_filter = st.text_input("Filter Metric Name (optional)", "")
+        metric_filter = st.text_input("Filter Metric Name (optional)", "")
         
         if st.button("Generate Custom Visualization"):
             filtered_df = df.copy()
             
-            if metric_filter:
-                filtered_df = filtered_df[filtered_df['METRIC_NAME'].str.contains(metric_filter, case=False, na=False)]
+            if metric_filter and metric_col and metric_col in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df[metric_col].str.contains(metric_filter, case=False, na=False)]
             
             if group_by:
-                custom_analysis = filtered_df.groupby(group_by)['LIFT'].agg(['mean', 'std', 'count']).reset_index()
+                custom_analysis = filtered_df.groupby(group_by)[lift_col].agg(['mean', 'std', 'count']).reset_index()
                 st.dataframe(custom_analysis, use_container_width=True)
                 
                 # Simple bar chart
@@ -525,37 +577,43 @@ def show_reports():
     col1, col2 = st.columns(2)
     
     with col1:
-        include_charts = st.checkbox("Include Visualizations", value=True)
+        include_visualizations = st.checkbox("Generate Visualizations", value=True)
         include_summary = st.checkbox("Include Summary Statistics", value=True)
     
     with col2:
-        include_patterns = st.checkbox("Include Pattern Analysis", value=True)
-        include_significant = st.checkbox("Include Significant Results", value=True)
+        include_filter_analysis = st.checkbox("Include Filter Analysis", value=True)
+        include_stability = st.checkbox("Include Stability Analysis", value=True)
     
     if st.button("📄 Generate Full Report", type="primary", use_container_width=True):
         with st.spinner("Generating report..."):
             try:
                 analyzer = st.session_state.analyzer
-                script_dir = Path(__file__).parent
-                output_dir = script_dir.parent / "output"
-                output_dir.mkdir(exist_ok=True)
                 
-                report_path = analyzer.generate_report(output_dir=str(output_dir))
-                st.success(f"✅ Report generated: {report_path}")
+                # Generate visualizations if requested
+                if include_visualizations:
+                    analyzer.generate_visualizations(
+                        stability=st.session_state.stability,
+                        ts_data=st.session_state.ts_data
+                    )
+                
+                # Generate report
+                report_text = analyzer.export_summary_report(
+                    stability=st.session_state.stability,
+                    filter_results=st.session_state.filter_results
+                )
+                
+                st.success("✅ Report generated!")
                 
                 # Show report preview
-                if Path(report_path).exists():
-                    with open(report_path, 'r') as f:
-                        report_text = f.read()
-                    st.text_area("Report Preview", report_text, height=300)
-                    
-                    # Download button
-                    st.download_button(
-                        label="📥 Download Report",
-                        data=report_text,
-                        file_name=Path(report_path).name,
-                        mime="text/plain"
-                    )
+                st.text_area("Report Preview", report_text, height=300)
+                
+                # Download button
+                st.download_button(
+                    label="📥 Download Report",
+                    data=report_text,
+                    file_name=f"comprehensive_analysis_report_{datetime.now().strftime('%Y%m%d')}.txt",
+                    mime="text/plain"
+                )
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 st.exception(e)
@@ -567,16 +625,29 @@ def show_reports():
     if st.session_state.merged_data is not None:
         df = st.session_state.merged_data
         
+        metric_col = 'METRIC_NAME' if 'METRIC_NAME' in df.columns else ('METRIC' if 'METRIC' in df.columns else None)
+        lift_col = 'LIFT' if 'LIFT' in df.columns else ('lift' if 'lift' in df.columns else None)
+        channel_col = 'CHANNEL' if 'CHANNEL' in df.columns else ('channel' if 'channel' in df.columns else None)
+        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             st.metric("Total Observations", f"{len(df):,}")
         with col2:
-            st.metric("Average Lift", f"{df['LIFT'].mean():.2f}%")
+            if lift_col and lift_col in df.columns:
+                st.metric("Average Lift", f"{df[lift_col].mean():.2f}%")
+            else:
+                st.metric("Average Lift", "N/A")
         with col3:
-            st.metric("Channels", df['CHANNEL'].nunique())
+            if channel_col and channel_col in df.columns:
+                st.metric("Channels", df[channel_col].nunique())
+            else:
+                st.metric("Channels", "N/A")
         with col4:
-            st.metric("Metrics", df['METRIC_NAME'].nunique())
+            if metric_col and metric_col in df.columns:
+                st.metric("Metrics", df[metric_col].nunique())
+            else:
+                st.metric("Metrics", "N/A")
 
 if __name__ == "__main__":
     main()
