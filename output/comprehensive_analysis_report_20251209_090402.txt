@@ -1,0 +1,42 @@
+================================================================================
+KANTAR BLS COMPREHENSIVE ANALYSIS REPORT
+Generated: 2025-12-09 09:04:02
+================================================================================
+
+DATA SUMMARY
+--------------------------------------------------------------------------------
+Total Observations: 47,616
+Unique Metrics: 64
+Time Range: 2025-02-01 00:00:00 to 2025-04-01 00:00:00
+
+SIGNAL VS NOISE ANALYSIS
+--------------------------------------------------------------------------------
+Signal (Stable Metrics): 20
+Noise (Unstable Metrics): 4
+
+Top 10 Stable Metrics (Signal):
+  1. Delivery Category -  Prepared Restaurant Food (e.g., pizza, Thai food, Mexican food, sushi, etc.): stability=0.949, CV=0.05
+  2. Delivery Category -  Household Essentials (e.g., paper towels, toilet paper, cleaning supplies, organizers, etc.): stability=0.855, CV=0.17
+  3. DashPass Use - Heard of it but haven't used it: stability=0.848, CV=0.18
+  4. Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 20+: stability=0.825, CV=0.21
+  5. Past Brand Usage - DoorDash: stability=0.808, CV=0.24
+  6. Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 4-9: stability=0.797, CV=0.26
+  7. Gender - Prefer not to answer: stability=0.792, CV=0.26
+  8. Children in HH -  Yes, age 0-6: stability=0.781, CV=0.28
+  9. Past Brand Recency - Grubhub - I did not use in the past 30 days: stability=0.761, CV=0.31
+  10. Past Brand Recency - Uber Eats - I did not use in the past 30 days: stability=0.752, CV=0.33
+
+FILTER-LEVEL INSIGHTS
+--------------------------------------------------------------------------------
+
+CHANNEL:
+  Unique values: 4
+  Top 5 by stability:
+    1. Tv: avg_lift=0.11%, stability=0.523
+    2. Any: avg_lift=0.09%, stability=0.403
+    3. Social: avg_lift=0.06%, stability=0.290
+    4. Digital: avg_lift=0.03%, stability=0.179
+
+================================================================================
+END OF REPORT
+================================================================================

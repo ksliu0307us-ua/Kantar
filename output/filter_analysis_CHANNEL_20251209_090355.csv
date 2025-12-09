@@ -1,0 +1,257 @@
+CHANNEL,METRIC_NAME,avg_lift,lift_std,count
+Any,Age - 18-24,0.4758978494623656,0.77985837612105,186
+Any,Age - 25-34,0.05287096774193548,0.23073910507764253,186
+Any,Age - 35-44,0.06427419354838709,0.184164835334193,186
+Any,Age - 45-54,0.06337096774193549,0.23436286721865796,186
+Any,Any - Any,0.05744086021505376,0.1472332558178195,186
+Any,"Children in HH -  Yes, age 0-6",0.14757526881720429,0.2527491165674036,186
+Any,"Children in HH -  Yes, age 13-17",0.02468279569892473,0.22735996325562977,186
+Any,"Children in HH -  Yes, age 7-12",0.08624193548387096,0.20147019245567208,186
+Any,Children in HH - No,0.07162903225806452,0.1828744275005475,186
+Any,DashPass Benefit Awareness - $0 Delivery + 1 Other Benefit (DP aware non-users),0.1753279569892473,1.4053770543294792,186
+Any,DashPass Benefit Awareness - $0 Delivery + 1 Other Benefit (DP users),0.01699462365591398,0.25222639974375305,186
+Any,DashPass Use - Have not heard of it,0.31671505376344083,0.6849299585333405,186
+Any,DashPass Use - Heard of it but haven't used it,0.09210752688172044,0.23220175115691333,186
+Any,DashPass Use - Use it now,0.024059139784946233,0.30315025575556004,186
+Any,DashPass Use - Used in the past but do not use now,0.09149462365591399,0.20194353632347473,186
+Any,"Delivery Category -  Groceries (e.g., dairy, eggs, produce, meat, bread, snacks, pasta, etc.)",0.08551612903225807,0.1746158169302882,186
+Any,"Delivery Category -  Household Essentials (e.g., paper towels, toilet paper, cleaning supplies, organizers, etc.)",0.07184946236559141,0.21388968847877443,186
+Any,"Delivery Category -  Personal Care &amp; Beauty (e.g., cosmetics/makeup, bath and body, skincare, feminine care, etc.)",0.06225268817204301,0.18881011659302,186
+Any,"Delivery Category -  Prepared Restaurant Food (e.g., pizza, Thai food, Mexican food, sushi, etc.)",0.05777956989247312,0.1707640376464773,186
+Any,Delivery Category - None of the above,0.4378064516129032,1.0069180997647365,186
+Any,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 1",0.11041397849462366,0.23449141197500592,186
+Any,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 10-19",0.11311290322580646,0.23791123292422686,186
+Any,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 2-3",0.11230645161290322,0.24215969191957645,186
+Any,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 20+",0.1214516129032258,0.2341390677598221,186
+Any,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 4-9",0.1007043010752688,0.2317420599713809,186
+Any,Ethnicity - Asian,0.14296774193548387,1.010278302054657,186
+Any,Ethnicity - Black/African American,0.3504784946236559,0.575975376791538,186
+Any,Ethnicity - Hispanic,0.26207526881720433,0.5649978088751416,186
+Any,Ethnicity - Native American,-0.13380645161290322,0.7049539951723822,186
+Any,Ethnicity - Native Hawaiian or Other Pacific Islander,-0.10439784946236559,0.27564776347517084,186
+Any,Ethnicity - Other,0.03414516129032258,0.5391777577849199,186
+Any,Ethnicity - Prefer not to answer,-0.24205913978494625,0.40267618503841757,186
+Any,Ethnicity - White/Caucasian,0.04323118279569892,0.16390166892509447,186
+Any,Gender - Female,0.09538709677419355,0.20612289864573588,186
+Any,Gender - I prefer to self identify,0.0,0.0,186
+Any,Gender - Male,0.05058064516129032,0.18374037632930754,186
+Any,Gender - Non-binary or gender fluid,-0.014827956989247316,0.5127162035437773,186
+Any,Gender - Prefer not to answer,-0.2124569892473118,0.36464218785969144,186
+Any,Past Brand Recency - Amazon - I did not use in the past 30 days,0.10318279569892473,0.48309693384060715,186
+Any,Past Brand Recency - Amazon - Less than once a week,0.10775806451612903,0.33671144204627546,186
+Any,Past Brand Recency - Amazon - Once a week,0.07022043010752688,0.2535845928729044,186
+Any,Past Brand Recency - Amazon - Several times a week,0.10852688172043011,0.3152242819360774,186
+Any,Past Brand Recency - DoorDash - I did not use in the past 30 days,0.6518387096774194,1.1381768331742401,186
+Any,Past Brand Recency - DoorDash - Less than once a week,0.18973118279569892,0.34330354198769375,186
+Any,Past Brand Recency - DoorDash - Once a week,-0.007618279569892473,0.1864957053030541,186
+Any,Past Brand Recency - DoorDash - Several times a week,0.06288172043010752,0.5485377879902538,186
+Any,Past Brand Recency - Grubhub - I did not use in the past 30 days,0.13841935483870968,0.3781477566952309,186
+Any,Past Brand Recency - Grubhub - Less than once a week,0.06550537634408603,0.4381268512757196,186
+Any,Past Brand Recency - Grubhub - Once a week,0.09920967741935484,0.5362625457365969,186
+Any,Past Brand Recency - Grubhub - Several times a week,-0.03643010752688172,0.47714286823786706,186
+Any,Past Brand Recency - Instacart - I did not use in the past 30 days,0.12097849462365592,0.43916952285568406,186
+Any,Past Brand Recency - Instacart - Less than once a week,0.05110752688172043,0.2909034747450011,186
+Any,Past Brand Recency - Instacart - Once a week,0.029865591397849462,0.3751071316504842,186
+Any,Past Brand Recency - Instacart - Several times a week,0.07979569892473118,0.3670644264575224,186
+Any,Past Brand Recency - Uber Eats - I did not use in the past 30 days,0.04989247311827957,0.6353912684725435,186
+Any,Past Brand Recency - Uber Eats - Less than once a week,0.11323655913978495,0.29922080422863573,186
+Any,Past Brand Recency - Uber Eats - Once a week,0.088252688172043,0.31800583985506276,186
+Any,Past Brand Recency - Uber Eats - Several times a week,0.044989247311827955,0.3393950896975114,186
+Any,Past Brand Usage - Amazon,0.06236559139784946,0.16317265171929946,186
+Any,Past Brand Usage - DoorDash,0.0532741935483871,0.14273432163873703,186
+Any,Past Brand Usage - Grubhub,0.027215053763440862,0.21195870834299194,186
+Any,Past Brand Usage - Instacart,0.03579032258064516,0.1754579617409075,186
+Any,Past Brand Usage - Uber Eats,0.031161290322580647,0.16277221957826263,186
+Any,Past Brand Usage - Used Competitor but NOT Used DoorDash,0.24816666666666667,0.8746024388978834,186
+Digital,Age - 18-24,0.05756451612903226,0.576429146279085,186
+Digital,Age - 25-34,0.20304838709677417,0.46035993300493,186
+Digital,Age - 35-44,0.04120430107526882,0.2107744309401819,186
+Digital,Age - 45-54,-0.10146236559139785,0.2251290589208553,186
+Digital,Any - Any,-0.0006827956989247308,0.11295079734703518,186
+Digital,"Children in HH -  Yes, age 0-6",0.24805913978494626,0.40805699356473957,186
+Digital,"Children in HH -  Yes, age 13-17",-0.15891935483870967,0.23151960736909152,186
+Digital,"Children in HH -  Yes, age 7-12",0.042145161290322586,0.3012506461192593,186
+Digital,Children in HH - No,0.024580645161290323,0.17983871588585534,186
+Digital,DashPass Benefit Awareness - $0 Delivery + 1 Other Benefit (DP aware non-users),0.0024247311827956955,0.3741573411355214,186
+Digital,DashPass Benefit Awareness - $0 Delivery + 1 Other Benefit (DP users),0.01653763440860215,0.3406731510895637,186
+Digital,DashPass Use - Have not heard of it,0.21880107526881723,0.911148825295119,186
+Digital,DashPass Use - Heard of it but haven't used it,0.0070053763440860225,0.2537691331582934,186
+Digital,DashPass Use - Use it now,0.002091397849462365,0.2481938589112927,186
+Digital,DashPass Use - Used in the past but do not use now,0.0787258064516129,0.28921305170474787,186
+Digital,"Delivery Category -  Groceries (e.g., dairy, eggs, produce, meat, bread, snacks, pasta, etc.)",0.011645161290322583,0.17090538840911704,186
+Digital,"Delivery Category -  Household Essentials (e.g., paper towels, toilet paper, cleaning supplies, organizers, etc.)",-0.00636021505376344,0.16511648411809488,186
+Digital,"Delivery Category -  Personal Care &amp; Beauty (e.g., cosmetics/makeup, bath and body, skincare, feminine care, etc.)",-0.02582795698924731,0.18273765709970682,186
+Digital,"Delivery Category -  Prepared Restaurant Food (e.g., pizza, Thai food, Mexican food, sushi, etc.)",0.0067956989247311824,0.14836963039869042,186
+Digital,Delivery Category - None of the above,0.018311827956989254,0.7570652366262713,186
+Digital,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 1",-0.12061290322580645,0.23952721595668025,186
+Digital,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 10-19",-0.07676881720430108,0.31819857015612785,186
+Digital,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 2-3",0.08938709677419356,0.3182536989787988,186
+Digital,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 20+",0.0411989247311828,0.25569292858537807,186
+Digital,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 4-9",-0.05731182795698925,0.18515080652441268,186
+Digital,Ethnicity - Asian,-0.12279569892473118,0.49958184804926575,186
+Digital,Ethnicity - Black/African American,0.16643010752688173,0.4948336635154248,186
+Digital,Ethnicity - Hispanic,0.1914516129032258,0.8897385405943737,186
+Digital,Ethnicity - Native American,-0.2157795698924731,0.6660435419674681,186
+Digital,Ethnicity - Native Hawaiian or Other Pacific Islander,0.03778494623655914,0.44968366898358414,186
+Digital,Ethnicity - Other,-0.04480645161290323,0.9734451858754539,186
+Digital,Ethnicity - Prefer not to answer,-0.026682795698924736,0.3780090109389731,186
+Digital,Ethnicity - White/Caucasian,0.010204301075268816,0.15655853298901032,186
+Digital,Gender - Female,-0.023564516129032258,0.19552592592048224,186
+Digital,Gender - I prefer to self identify,-0.11779569892473118,0.4133570816550428,186
+Digital,Gender - Male,0.10618817204301076,0.2393817308161431,186
+Digital,Gender - Non-binary or gender fluid,-0.020021505376344086,0.4728923305486945,186
+Digital,Gender - Prefer not to answer,-0.4341720430107527,0.48617257804879765,186
+Digital,Past Brand Recency - Amazon - I did not use in the past 30 days,0.11569892473118279,0.47796667948879057,186
+Digital,Past Brand Recency - Amazon - Less than once a week,0.12098387096774194,0.4269012731718488,186
+Digital,Past Brand Recency - Amazon - Once a week,0.014989247311827958,0.27425401500911445,186
+Digital,Past Brand Recency - Amazon - Several times a week,-0.054897849462365596,0.3180226836983513,186
+Digital,Past Brand Recency - DoorDash - I did not use in the past 30 days,0.2655,0.5075682912380071,186
+Digital,Past Brand Recency - DoorDash - Less than once a week,0.13355913978494624,0.4742037186208588,186
+Digital,Past Brand Recency - DoorDash - Once a week,-0.018827956989247312,0.24487614624124926,186
+Digital,Past Brand Recency - DoorDash - Several times a week,-0.0318010752688172,0.2770251977980591,186
+Digital,Past Brand Recency - Grubhub - I did not use in the past 30 days,0.1577741935483871,0.5506269277838648,186
+Digital,Past Brand Recency - Grubhub - Less than once a week,0.03506989247311828,0.3407722556543771,186
+Digital,Past Brand Recency - Grubhub - Once a week,0.07794623655913978,0.695458174708978,186
+Digital,Past Brand Recency - Grubhub - Several times a week,-0.09571505376344085,0.489758163696425,186
+Digital,Past Brand Recency - Instacart - I did not use in the past 30 days,0.21168817204301077,0.3970370253956412,186
+Digital,Past Brand Recency - Instacart - Less than once a week,0.05230645161290323,0.3942375023795632,186
+Digital,Past Brand Recency - Instacart - Once a week,0.24016129032258066,0.7168062769742446,186
+Digital,Past Brand Recency - Instacart - Several times a week,-0.0035483870967741907,0.5188536119359738,186
+Digital,Past Brand Recency - Uber Eats - I did not use in the past 30 days,0.10104838709677419,0.4879060308536168,186
+Digital,Past Brand Recency - Uber Eats - Less than once a week,0.050967741935483875,0.35140805422672683,186
+Digital,Past Brand Recency - Uber Eats - Once a week,0.04268279569892473,0.3944388027410811,186
+Digital,Past Brand Recency - Uber Eats - Several times a week,0.09501612903225808,0.47488464005489756,186
+Digital,Past Brand Usage - Amazon,-0.020612903225806452,0.12456154734046151,186
+Digital,Past Brand Usage - DoorDash,0.02463978494623656,0.13570072129489033,186
+Digital,Past Brand Usage - Grubhub,0.03467204301075269,0.21747498140822136,186
+Digital,Past Brand Usage - Instacart,0.07651075268817205,0.24180077211884202,186
+Digital,Past Brand Usage - Uber Eats,0.00953763440860215,0.19461396628529168,186
+Digital,Past Brand Usage - Used Competitor but NOT Used DoorDash,-0.08936021505376343,0.7068235945892453,186
+Social,Age - 18-24,0.27028494623655913,0.41631745876777965,186
+Social,Age - 25-34,-0.00464516129032258,0.14407379079026328,186
+Social,Age - 35-44,0.002763440860215054,0.1481402839786858,186
+Social,Age - 45-54,0.05087096774193548,0.1653354150715939,186
+Social,Any - Any,0.01389784946236559,0.10724926911210131,186
+Social,"Children in HH -  Yes, age 0-6",0.015043010752688173,0.15506618736655609,186
+Social,"Children in HH -  Yes, age 13-17",0.04222043010752688,0.1592357416480119,186
+Social,"Children in HH -  Yes, age 7-12",0.012913978494623656,0.1215394191122373,186
+Social,Children in HH - No,0.03163440860215054,0.1306686161328756,186
+Social,DashPass Benefit Awareness - $0 Delivery + 1 Other Benefit (DP aware non-users),0.020129032258064516,0.1449979851346648,186
+Social,DashPass Benefit Awareness - $0 Delivery + 1 Other Benefit (DP users),-0.009731182795698925,0.15091885342684824,186
+Social,DashPass Use - Have not heard of it,0.20846236559139786,0.43555259859580997,186
+Social,DashPass Use - Heard of it but haven't used it,0.07080107526881721,0.17845083568197237,186
+Social,DashPass Use - Use it now,-0.0032849462365591386,0.16197864219987776,186
+Social,DashPass Use - Used in the past but do not use now,0.029408602150537633,0.11148464798533397,186
+Social,"Delivery Category -  Groceries (e.g., dairy, eggs, produce, meat, bread, snacks, pasta, etc.)",0.0250752688172043,0.11513397475037174,186
+Social,"Delivery Category -  Household Essentials (e.g., paper towels, toilet paper, cleaning supplies, organizers, etc.)",0.02772043010752688,0.12082601881878668,186
+Social,"Delivery Category -  Personal Care &amp; Beauty (e.g., cosmetics/makeup, bath and body, skincare, feminine care, etc.)",0.018602150537634407,0.11927838342343067,186
+Social,"Delivery Category -  Prepared Restaurant Food (e.g., pizza, Thai food, Mexican food, sushi, etc.)",0.020053763440860215,0.10753949525552928,186
+Social,Delivery Category - None of the above,0.7257688172043011,1.1956735861613732,186
+Social,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 1",0.026494623655913978,0.1519315011839867,186
+Social,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 10-19",0.019881720430107528,0.17601172254955624,186
+Social,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 2-3",0.008182795698924732,0.16937624494320544,186
+Social,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 20+",0.043290322580645156,0.15355971323059617,186
+Social,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 4-9",0.014790322580645164,0.1432121243278305,186
+Social,Ethnicity - Asian,0.1533763440860215,0.5071921415108339,186
+Social,Ethnicity - Black/African American,0.16889247311827957,0.24272393226542602,186
+Social,Ethnicity - Hispanic,0.03613440860215054,0.22613721784822344,186
+Social,Ethnicity - Native American,0.1647956989247312,1.0417706658365926,186
+Social,Ethnicity - Native Hawaiian or Other Pacific Islander,0.15494623655913978,1.0634393347603284,186
+Social,Ethnicity - Other,0.1969677419354839,0.8491087340247042,186
+Social,Ethnicity - Prefer not to answer,0.3055322580645161,1.0035308700094385,186
+Social,Ethnicity - White/Caucasian,-0.01853763440860215,0.11810367036791755,186
+Social,Gender - Female,0.03745161290322581,0.1281456954706429,186
+Social,Gender - I prefer to self identify,-0.14605913978494625,0.30267885353204343,186
+Social,Gender - Male,-0.0026505376344086013,0.11938238099318209,186
+Social,Gender - Non-binary or gender fluid,0.8399838709677419,1.9730274842972924,186
+Social,Gender - Prefer not to answer,-0.09153225806451613,0.5597614757774986,186
+Social,Past Brand Recency - Amazon - I did not use in the past 30 days,0.08989784946236559,0.2637538682605,186
+Social,Past Brand Recency - Amazon - Less than once a week,0.045198924731182796,0.1408626634164763,186
+Social,Past Brand Recency - Amazon - Once a week,0.012559139784946239,0.127056613248059,186
+Social,Past Brand Recency - Amazon - Several times a week,0.024204301075268816,0.18213603820725102,186
+Social,Past Brand Recency - DoorDash - I did not use in the past 30 days,0.11037634408602151,0.2275848241736026,186
+Social,Past Brand Recency - DoorDash - Less than once a week,0.08762903225806451,0.17076516834571245,186
+Social,Past Brand Recency - DoorDash - Once a week,-0.0053709677419354835,0.10800609100005644,186
+Social,Past Brand Recency - DoorDash - Several times a week,-0.009043010752688171,0.14005148968039283,186
+Social,Past Brand Recency - Grubhub - I did not use in the past 30 days,-0.02852688172043011,0.1439040289350416,186
+Social,Past Brand Recency - Grubhub - Less than once a week,-0.004451612903225806,0.16556484913064962,186
+Social,Past Brand Recency - Grubhub - Once a week,0.024193548387096774,0.27671522127971465,186
+Social,Past Brand Recency - Grubhub - Several times a week,-3.0404293181098877e-18,0.3078995975349142,186
+Social,Past Brand Recency - Instacart - I did not use in the past 30 days,-0.06538172043010752,0.13074166601209697,186
+Social,Past Brand Recency - Instacart - Less than once a week,0.08533333333333333,0.1676363718086059,186
+Social,Past Brand Recency - Instacart - Once a week,0.011284946236559141,0.20332375857038026,186
+Social,Past Brand Recency - Instacart - Several times a week,0.04141935483870968,0.6837131818846442,186
+Social,Past Brand Recency - Uber Eats - I did not use in the past 30 days,-0.0335752688172043,0.13765140943774465,186
+Social,Past Brand Recency - Uber Eats - Less than once a week,0.03876881720430108,0.22167698754304885,186
+Social,Past Brand Recency - Uber Eats - Once a week,0.012182795698924732,0.2264464352263829,186
+Social,Past Brand Recency - Uber Eats - Several times a week,-0.0038709677419354826,0.1548567062703332,186
+Social,Past Brand Usage - Amazon,0.015338709677419356,0.10021618958842611,186
+Social,Past Brand Usage - DoorDash,0.020973118279569894,0.09704590347652561,186
+Social,Past Brand Usage - Grubhub,-0.027919354838709675,0.11423025088810708,186
+Social,Past Brand Usage - Instacart,-0.0015430107526881722,0.11399635261860717,186
+Social,Past Brand Usage - Uber Eats,-0.004612903225806452,0.10119871084085036,186
+Social,Past Brand Usage - Used Competitor but NOT Used DoorDash,0.03805913978494623,0.5156905228938177,186
+Tv,Age - 18-24,0.0966505376344086,0.22618101199901508,186
+Tv,Age - 25-34,0.13131182795698926,0.15403495415841967,186
+Tv,Age - 35-44,0.13383870967741934,0.18508214628061667,186
+Tv,Age - 45-54,0.11046236559139784,0.2047936368912142,186
+Tv,Any - Any,0.11506451612903226,0.10169671991857475,186
+Tv,"Children in HH -  Yes, age 0-6",0.15902150537634407,0.14149942056950401,186
+Tv,"Children in HH -  Yes, age 13-17",0.11968279569892473,0.15097825662221148,186
+Tv,"Children in HH -  Yes, age 7-12",0.17063978494623655,0.17817839322995246,186
+Tv,Children in HH - No,0.05756451612903226,0.1437201809411768,186
+Tv,DashPass Benefit Awareness - $0 Delivery + 1 Other Benefit (DP aware non-users),0.09726881720430107,0.20794339873251869,186
+Tv,DashPass Benefit Awareness - $0 Delivery + 1 Other Benefit (DP users),0.06327956989247312,0.09560661128235376,186
+Tv,DashPass Use - Have not heard of it,0.05294623655913979,0.22253001573872874,186
+Tv,DashPass Use - Heard of it but haven't used it,0.09818817204301077,0.20466101721493354,186
+Tv,DashPass Use - Use it now,0.06161827956989247,0.09401902906440437,186
+Tv,DashPass Use - Used in the past but do not use now,0.11588709677419355,0.17175892327474196,186
+Tv,"Delivery Category -  Groceries (e.g., dairy, eggs, produce, meat, bread, snacks, pasta, etc.)",0.10614516129032257,0.09831337322479945,186
+Tv,"Delivery Category -  Household Essentials (e.g., paper towels, toilet paper, cleaning supplies, organizers, etc.)",0.1028225806451613,0.11558282733107375,186
+Tv,"Delivery Category -  Personal Care &amp; Beauty (e.g., cosmetics/makeup, bath and body, skincare, feminine care, etc.)",0.10993010752688172,0.12268183617176123,186
+Tv,"Delivery Category -  Prepared Restaurant Food (e.g., pizza, Thai food, Mexican food, sushi, etc.)",0.10868279569892474,0.10190685426238674,186
+Tv,Delivery Category - None of the above,0.42909677419354836,1.4085856818158293,186
+Tv,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 1",0.15745161290322582,0.2004970588786931,186
+Tv,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 10-19",0.14050537634408602,0.14808333108054958,186
+Tv,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 2-3",0.13913440860215054,0.16973342596769042,186
+Tv,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 20+",0.13516666666666668,0.13735568019882866,186
+Tv,"Digital Frequency (1, 2-3, 4-9, 10-19, 20+) with Control  - 4-9",0.12713440860215053,0.1898777364770508,186
+Tv,Ethnicity - Asian,0.08259139784946237,0.6576209905994138,186
+Tv,Ethnicity - Black/African American,0.0866989247311828,0.1603465695835615,186
+Tv,Ethnicity - Hispanic,0.19693548387096776,0.4576605565311033,186
+Tv,Ethnicity - Native American,0.08275806451612903,0.569455995086554,186
+Tv,Ethnicity - Native Hawaiian or Other Pacific Islander,0.20155913978494622,0.9742492268116201,186
+Tv,Ethnicity - Other,-0.008204301075268818,0.63629445944196,186
+Tv,Ethnicity - Prefer not to answer,0.00998924731182795,1.3096267881377806,186
+Tv,Ethnicity - White/Caucasian,0.12699462365591396,0.11931890030895644,186
+Tv,Gender - Female,0.08075268817204301,0.11705962037553513,186
+Tv,Gender - I prefer to self identify,0.01846236559139786,1.2157222083046704,186
+Tv,Gender - Male,0.14878494623655913,0.15030486852357444,186
+Tv,Gender - Non-binary or gender fluid,-0.012397849462365591,1.3168333978210651,186
+Tv,Gender - Prefer not to answer,-0.4498548387096774,0.5079071902911331,186
+Tv,Past Brand Recency - Amazon - I did not use in the past 30 days,0.030575268817204303,0.21869165564768892,186
+Tv,Past Brand Recency - Amazon - Less than once a week,0.0817741935483871,0.1745675508704687,186
+Tv,Past Brand Recency - Amazon - Once a week,0.1205215053763441,0.16390063591681944,186
+Tv,Past Brand Recency - Amazon - Several times a week,0.14716129032258066,0.16261147795814254,186
+Tv,Past Brand Recency - DoorDash - I did not use in the past 30 days,0.07616129032258065,0.2003401858365635,186
+Tv,Past Brand Recency - DoorDash - Less than once a week,0.11696236559139785,0.1928391955302451,186
+Tv,Past Brand Recency - DoorDash - Once a week,0.09266666666666667,0.12456126970254403,186
+Tv,Past Brand Recency - DoorDash - Several times a week,0.10319354838709677,0.1597895073553154,186
+Tv,Past Brand Recency - Grubhub - I did not use in the past 30 days,0.11456451612903226,0.1964698962678363,186
+Tv,Past Brand Recency - Grubhub - Less than once a week,0.10959139784946237,0.21059520471731386,186
+Tv,Past Brand Recency - Grubhub - Once a week,0.14046236559139785,0.2073818026961596,186
+Tv,Past Brand Recency - Grubhub - Several times a week,0.158005376344086,0.2674100100677837,186
+Tv,Past Brand Recency - Instacart - I did not use in the past 30 days,0.10920967741935483,0.2642287995288097,186
+Tv,Past Brand Recency - Instacart - Less than once a week,0.1191236559139785,0.20841458365626933,186
+Tv,Past Brand Recency - Instacart - Once a week,0.14975806451612902,0.21743184223037137,186
+Tv,Past Brand Recency - Instacart - Several times a week,0.1280752688172043,0.19847490066976547,186
+Tv,Past Brand Recency - Uber Eats - I did not use in the past 30 days,0.09995161290322581,0.20693185409846337,186
+Tv,Past Brand Recency - Uber Eats - Less than once a week,0.1252795698924731,0.1758255809935115,186
+Tv,Past Brand Recency - Uber Eats - Once a week,0.15025268817204301,0.2356187612827347,186
+Tv,Past Brand Recency - Uber Eats - Several times a week,0.13209139784946236,0.20242865204522373,186
+Tv,Past Brand Usage - Amazon,0.10939784946236558,0.11099740827604418,186
+Tv,Past Brand Usage - DoorDash,0.08816129032258065,0.08589670607818921,186
+Tv,Past Brand Usage - Grubhub,0.11976344086021505,0.1351911877705022,186
+Tv,Past Brand Usage - Instacart,0.114,0.10843849919704766,186
+Tv,Past Brand Usage - Uber Eats,0.12224731182795699,0.12269581423411521,186
+Tv,Past Brand Usage - Used Competitor but NOT Used DoorDash,0.43064516129032254,0.4724709433688084,186

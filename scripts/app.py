@@ -16,7 +16,7 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
-from analyze import KantarBLSAnalyzer
+from comprehensive_analysis import ComprehensiveBLSAnalyzer
 
 # Page configuration
 st.set_page_config(
