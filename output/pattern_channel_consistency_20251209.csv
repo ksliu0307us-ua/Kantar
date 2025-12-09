@@ -1,0 +1,249 @@
+CHANNEL,METRIC_NAME,MEAN_LIFT,STD_LIFT,COUNT,CV,IS_CONSISTENT
+OTT,Affinity ,0.007747739565,0.009080591874855087,4,1.172031119357209,False
+OTT,Aided Awareness,-0.0022220986914825,0.004413312444789574,4,1.9861010051921586,False
+OTT,BA MDS: Is different,0.0095996600525,0.012149771002739656,4,1.2656459641584434,False
+OTT,BA MDS: Meets needs,-0.0050554395380000006,0.006088721396147671,4,1.20439011294287,False
+OTT,BA MDS: Sets trends,0.0005930045194999999,0.0027441134128983616,4,4.627474703248635,False
+OTT,BA: Has my favorite brands or stores,0.00075389021625,0.0008902991380426988,4,1.1809400345732353,False
+OTT,BA: Is a brand I trust,0.0036516482420000003,0.004216851102776355,4,1.1547802042583362,False
+OTT,BA: Is an essential part of my life,0.024301658338,0.04282935138107317,4,1.7624044740231493,False
+OTT,BA: Makes my life easier,-0.0010251763857500001,0.0023096667570038,4,2.2529457263240515,False
+OTT,BA: Offers a wide selection of brands or stores across a variety of categories,-0.0070012283565,0.012002504170378948,4,1.7143426209253296,False
+OTT,Brand Familiarity,0.0020566534515,0.0031514177051994966,4,1.5323037057609492,False
+OTT,Brand Favorability,0.0118694836,0.01531704431962865,4,1.2904558307514449,False
+OTT,Consideration (Top 2 Box),0.006340598002,0.013431744879466507,4,2.1183719382982114,False
+OTT,DashPass Actions – Saw a Deal,0.0377408673275,0.10574874818504647,4,2.8019692093295463,False
+OTT,DashPass Actions – Talked to others,-0.004414812024999999,0.04259922808492852,4,9.649160110034023,False
+OTT,DashPass Aided Awareness,-0.006642924768250001,0.00963216229715671,4,1.4499881653325104,False
+OTT,DashPass Aided Awareness (DD aware non-users),-0.0850353665775,0.12663375994788698,4,1.4891893225682142,False
+OTT,DashPass Aided Awareness (DD users),0.009431525409500001,0.01655034545652257,4,1.7547898921898746,False
+OTT,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP aware non-users),-0.09477503545,0.12813320574997722,4,1.3519721215781113,False
+OTT,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP users),0.020816917679999998,0.07130233782001036,4,3.425211115116941,False
+OTT,DashPass Benefits Awareness: $0 delivery fees + 1 Other Benefit,0.013124052689500001,0.032656255703499115,4,2.4882752664979777,False
+OTT,DashPass Benefits Awareness: $0 delivery fees on eligible orders,0.01160392785425,0.0271314982867691,4,2.338130556097179,False
+OTT,DashPass Benefits Awareness: Ability to add someone in your household to your DashPass membership for free,0.0011377469825,0.005080579339362014,4,4.465473798223863,False
+OTT,DashPass Benefits Awareness: Access to exclusive deals for DashPass members,0.0121173970975,0.03228146795385896,4,2.664059590860409,False
+OTT,DashPass Benefits Awareness: Discounted rides with Lyft,0.0231898818975,0.05793128203373543,4,2.4981275148270914,False
+OTT,DashPass Benefits Awareness: Max [HBO] subscription included at no extra cost,0.0759155879125,0.14396213516896475,4,1.8963448631247501,False
+OTT,DashPass Benefits Awareness: Reduced service fees on eligible orders,0.01862363628,0.0549477428180313,4,2.950430409610174,False
+OTT,DashPass Benefits: Consistently adds valuable perks and benefits for members,0.0151659779915,0.03192974646794281,4,2.1053536069904832,False
+OTT,DashPass Benefits: Makes members' lives better,0.0452965100325,0.0826400386279798,4,1.8244239692790023,False
+OTT,"DashPass Benefits: Provides more value than other non-delivery subscription services (e.g. TV streaming, audio streaming, fitness, fashion, etc)",0.02187285728,0.03134147513011537,4,1.43289350489994,False
+OTT,DashPass Benefits: Save more than other delivery subscription services,0.015100484580999999,0.02664122939626663,4,1.7642632097904747,False
+OTT,DashPass Benefits: Saves subscription members more money than non-members who use the delivery service,0.010979832781000001,0.0232702296154877,4,2.1193610212129603,False
+OTT,DashPass Worth,0.023097887206,0.04943999108409333,4,2.140455126616542,False
+OTT,First Choice Consideration,-0.025380712567499998,0.029496878982155958,4,1.1621769445483068,False
+OTT,More than Restaurant Aided Awareness,-0.0121253229,0.014074358015679465,4,1.160740883500881,False
+OTT,More than Restaurant Aided Awareness: Alcoholic Beverages,-0.0217175472475,0.03159204146432177,4,1.4546781505429194,False
+OTT,More than Restaurant Aided Awareness: Baby Supplies,-0.01306045932675,0.023622160859601265,4,1.8086776482063796,False
+OTT,More than Restaurant Aided Awareness: Flowers,-0.01595805666,0.01906859808196816,4,1.1949198131226688,False
+OTT,More than Restaurant Aided Awareness: Fresh Food & Produce,-0.0012512733249999998,0.022270817496107237,4,17.798523353086935,False
+OTT,More than Restaurant Aided Awareness: Health & Medicine,-0.0241780398725,0.02987500690350053,4,1.2356256777241994,False
+OTT,More than Restaurant Aided Awareness: Household Essentials,-0.0112701627125,0.01305996984290946,4,1.1588093425150237,False
+OTT,More than Restaurant Aided Awareness: Packaged Food & Non-Alcoholic Beverages,-0.00192946346,0.010514764383295416,4,5.449579430384971,False
+OTT,More than Restaurant Aided Awareness: Personal Care & Beauty,-0.02831579461,0.0385623265939059,4,1.3618663055384372,False
+OTT,More than Restaurant Aided Awareness: Pet Supplies,-0.0426049244775,0.0495396138292338,4,1.1627673194303176,False
+OTT,More than Restaurant Aided Awareness: Prepared Restaurant Food,-0.03111163508,0.04395700953475752,4,1.412880082378413,False
+OTT,More than Restaurant Consideration,-0.005982223244,0.0076392338728438385,4,1.2769890994131277,False
+OTT,More than Restaurant Consideration: Alcoholic Beverages,0.029006287865,0.08090012648755998,4,2.7890548030165867,False
+OTT,More than Restaurant Consideration: Baby Supplies,-0.040565185512500004,0.04684618923889119,4,1.1548372982161197,False
+OTT,More than Restaurant Consideration: Flowers,0.054966421187499996,0.1273638589354438,4,2.3171211838766723,False
+OTT,More than Restaurant Consideration: Fresh Food & Produce,0.0067714867335000005,0.00869526480910299,4,1.284099807223375,False
+OTT,More than Restaurant Consideration: Health & Medicine,0.0290310194325,0.09128578634625524,4,3.14442234997995,False
+OTT,More than Restaurant Consideration: Household Essentials,-0.00714917034175,0.015667318083931795,4,2.1914875901665383,False
+OTT,More than Restaurant Consideration: Packaged Food & Non-Alcoholic Beverages,0.0007007027099999999,0.017516732738998106,4,24.998808323430218,False
+OTT,More than Restaurant Consideration: Personal Care & Beauty,-0.050221968335,0.07882158714827527,4,1.569464315347115,False
+OTT,More than Restaurant Consideration: Pet Supplies,-0.03133010721,0.036509443482995924,4,1.1653149872191555,False
+OTT,More than Restaurant Consideration: Prepared Restaurant Food,0.00140323357525,0.006255612339955919,4,4.4579979059020305,False
+OTT,Unaided Brand Awareness (Any Mention),-0.006668286124999999,0.022035752259766745,4,3.304560099356377,False
+OTT,Unaided Brand Awareness (Any Mention) - Amazon,0.0249792124,0.029963744463393352,4,1.1995472068364075,False
+OTT,Unaided Brand Awareness (Any Mention) - GrubHub,0.043059793913,0.08309145736505501,4,1.9296761506322309,False
+OTT,Unaided Brand Awareness (Any Mention) - Instacart,-0.047666343185,0.10808332330201842,4,2.2674976950199714,False
+OTT,Unaided Brand Awareness (Any Mention) - Uber Eats,-0.02663563168,0.03773125165576291,4,1.416570558906411,False
+OTT,Unaided Brand Awareness (First Mention),-0.006762722686750001,0.020141631048398577,4,2.9783316544771927,False
+Other,Affinity ,0.010948943898193618,0.10206569248060612,282,9.321966888280901,False
+Other,Aided Awareness,-0.004325182357279077,0.06721173690280426,282,15.53963078335647,False
+Other,BA MDS: Is different,0.0009839663163212766,0.09507960446544919,282,96.62892203558376,False
+Other,BA MDS: Meets needs,-0.005225982358014184,0.08808886422313024,282,16.855943665413186,False
+Other,BA MDS: Sets trends,0.004437289374684398,0.09197865506422494,282,20.728568118406052,False
+Other,BA: Has my favorite brands or stores,-0.0021223297066836886,0.09968847415764394,282,46.97124760761853,False
+Other,BA: Is a brand I trust,-0.0034819547326056734,0.08158938996317998,282,23.43206509813632,False
+Other,BA: Is an essential part of my life,0.008726626182920921,0.09622637078600087,282,11.026755216618273,False
+Other,BA: Makes my life easier,0.0013301101733007093,0.08238075051777659,282,61.93528338584632,False
+Other,BA: Offers a wide selection of brands or stores across a variety of categories,-0.004209457540488439,0.09180638331027925,282,21.809552044947484,False
+Other,Brand Familiarity,-0.005900365549868688,0.08137000199359234,282,13.790671324661101,False
+Other,Brand Favorability,0.005035700807037305,0.08555681687822567,282,16.99005166443993,False
+Other,Consideration (Top 2 Box),-0.0008899750416588651,0.07432184048776129,282,83.51002781968965,False
+Other,DashPass Actions – Saw a Deal,-0.019059533184503544,0.11604451143676699,282,6.08852852341198,False
+Other,DashPass Actions – Talked to others,-0.017385127248304964,0.11656050896466386,282,6.704610630677346,False
+Other,DashPass Aided Awareness,-0.004554085046419184,0.08261761737927426,282,18.141430504077956,False
+Other,DashPass Aided Awareness (DD aware non-users),0.014629780918700357,0.17495863895649344,282,11.959074433770533,False
+Other,DashPass Aided Awareness (DD users),-0.007216987072218333,0.08769127222564244,282,12.15067608520576,False
+Other,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP aware non-users),0.0312132216615305,0.35833859979772975,282,11.480346491735999,False
+Other,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP users),0.009330842040779361,0.14372119914897044,282,15.402811291934173,False
+Other,DashPass Benefits Awareness: $0 delivery fees + 1 Other Benefit,0.00494079167597695,0.10723504154919651,282,21.704020040066307,False
+Other,DashPass Benefits Awareness: $0 delivery fees on eligible orders,0.006893167705597872,0.11100402783550198,282,16.10348573782076,False
+Other,DashPass Benefits Awareness: Ability to add someone in your household to your DashPass membership for free,0.01103987438473156,0.17133498438766012,282,15.519649809115668,False
+Other,DashPass Benefits Awareness: Access to exclusive deals for DashPass members,-0.004624372479786171,0.10282388967094375,282,22.235209235502214,False
+Other,DashPass Benefits Awareness: Discounted rides with Lyft,0.010425467330460285,0.17558883156579064,282,16.842298383379845,False
+Other,DashPass Benefits Awareness: Max [HBO] subscription included at no extra cost,0.012341383180228723,0.14801003349385425,282,11.992985821149357,False
+Other,DashPass Benefits Awareness: Reduced service fees on eligible orders,-0.004179821178088687,0.12007161618087306,282,28.726495958800413,False
+Other,DashPass Benefits: Consistently adds valuable perks and benefits for members,0.008444296991425886,0.15979381360010356,282,18.923282040216485,False
+Other,DashPass Benefits: Makes members' lives better,-0.0030195939206705317,0.10389909266564491,282,34.40829972348502,False
+Other,"DashPass Benefits: Provides more value than other non-delivery subscription services (e.g. TV streaming, audio streaming, fitness, fashion, etc)",0.011401684797897093,0.11563558291658885,282,10.141973310638834,False
+Other,DashPass Benefits: Save more than other delivery subscription services,0.005291756067496454,0.10599392483667416,282,20.030009600729805,False
+Other,DashPass Benefits: Saves subscription members more money than non-members who use the delivery service,-0.0017079741002042912,0.11255844922689598,282,65.90173071912088,False
+Other,DashPass Worth,0.02472803248550071,0.2336614459632692,282,9.449253437380296,False
+Other,First Choice Consideration,0.007394120338392554,0.15300052852725188,282,20.692188052827046,False
+Other,More than Restaurant Aided Awareness,-0.0081652146140752,0.09617658161186664,282,11.77881858072382,False
+Other,More than Restaurant Aided Awareness: Alcoholic Beverages,-0.007533040538684041,0.12605037171180256,282,16.73300058117336,False
+Other,More than Restaurant Aided Awareness: Baby Supplies,-0.015083628624113828,0.12284493170618731,282,8.144255919281791,False
+Other,More than Restaurant Aided Awareness: Flowers,-0.022628930389560285,0.11674300339327978,282,5.159015533811463,False
+Other,More than Restaurant Aided Awareness: Fresh Food & Produce,-0.009320943540592198,0.14841152490825266,282,15.922371406062982,False
+Other,More than Restaurant Aided Awareness: Health & Medicine,-0.012927732917038297,0.22491040533737586,282,17.397513298016225,False
+Other,More than Restaurant Aided Awareness: Household Essentials,-0.006763314824885815,0.1543324852085272,282,22.819059766470765,False
+Other,More than Restaurant Aided Awareness: Packaged Food & Non-Alcoholic Beverages,-0.006463598308345035,0.14011123142204857,282,21.67697074262079,False
+Other,More than Restaurant Aided Awareness: Personal Care & Beauty,-0.010366231460234115,0.18772715813822283,282,18.109489341267626,False
+Other,More than Restaurant Aided Awareness: Pet Supplies,-0.01794699869432766,0.12801160381475601,282,7.132758295414344,False
+Other,More than Restaurant Aided Awareness: Prepared Restaurant Food,-0.01880302879989007,0.0962405247076471,282,5.118352246964051,False
+Other,More than Restaurant Consideration,-0.007122618423052483,0.0830873536474931,282,11.665282163449804,False
+Other,More than Restaurant Consideration: Alcoholic Beverages,0.006858188016269859,0.16716663043147176,282,24.374751761674947,False
+Other,More than Restaurant Consideration: Baby Supplies,-0.0036691925636400716,0.1997326052669454,282,54.4350294520378,False
+Other,More than Restaurant Consideration: Flowers,0.00877020613473968,0.2046285097863506,282,23.332234914729796,False
+Other,More than Restaurant Consideration: Fresh Food & Produce,0.021014931814027058,0.1814361688895241,282,8.633678685953146,False
+Other,More than Restaurant Consideration: Health & Medicine,-0.009699261773224114,0.15180691745472902,282,15.651388838046296,False
+Other,More than Restaurant Consideration: Household Essentials,0.002092767443316667,0.16108603851796502,282,76.97273723958172,False
+Other,More than Restaurant Consideration: Packaged Food & Non-Alcoholic Beverages,-0.0026915558745496445,0.23172228022195665,282,86.09231649732287,False
+Other,More than Restaurant Consideration: Personal Care & Beauty,-0.009698665119470212,0.16674167127265513,282,17.192228953025587,False
+Other,More than Restaurant Consideration: Pet Supplies,0.01632618737619858,0.5880513679533391,282,36.01890352003678,False
+Other,More than Restaurant Consideration: Prepared Restaurant Food,-0.0023113048371524825,0.10997677542648829,282,47.582116239577985,False
+Other,Unaided Brand Awareness (Any Mention),-0.02626360782615248,0.1161409202276296,282,4.422123609079332,False
+Other,Unaided Brand Awareness (Any Mention) - Amazon,-0.0057621978303569145,0.19686649711751586,282,34.165174975487055,False
+Other,Unaided Brand Awareness (Any Mention) - GrubHub,-0.027214164991404256,0.3219071491363625,282,11.828661626694725,False
+Other,Unaided Brand Awareness (Any Mention) - Instacart,0.0046920034677010655,0.2421246012843306,282,51.60367057506973,False
+Other,Unaided Brand Awareness (Any Mention) - Uber Eats,-0.007934076202537164,0.1414500926406614,282,17.8281741982045,False
+Other,Unaided Brand Awareness (First Mention),-0.03155182789511213,0.13382142682441822,282,4.241320891749326,False
+Podcast,Affinity ,0.011163982052352943,0.04493774242043282,17,4.025243162314262,False
+Podcast,Aided Awareness,-0.0019136670629411768,0.015613305875738896,17,8.158841304266533,False
+Podcast,BA MDS: Is different,0.05902805747411765,0.1792495619377893,17,3.03668407208531,False
+Podcast,BA MDS: Meets needs,0.013543995702352943,0.07485769409753862,17,5.527002203975441,False
+Podcast,BA MDS: Sets trends,0.09628484029,0.39202893170671027,17,4.071554052807893,False
+Podcast,BA: Has my favorite brands or stores,0.010778965415294118,0.0793118912754158,17,7.358024468923641,False
+Podcast,BA: Is a brand I trust,0.01926241831352941,0.08703044762441633,17,4.5181475247730685,False
+Podcast,BA: Is an essential part of my life,0.06461045333882354,0.19434295561899412,17,3.007918155284264,False
+Podcast,BA: Makes my life easier,-0.003081931728235296,0.05592047626896637,17,18.144618765123084,False
+Podcast,BA: Offers a wide selection of brands or stores across a variety of categories,0.010902102098764707,0.05261215079870076,17,4.825872141177446,False
+Podcast,Brand Familiarity,-0.010914480874117647,0.04316541075143452,17,3.9548752935923868,False
+Podcast,Brand Favorability,0.01649477062352941,0.058704756891578676,17,3.558992012161581,False
+Podcast,Consideration (Top 2 Box),-0.014881658491176468,0.0750626206077979,17,5.043968765464113,False
+Podcast,DashPass Actions – Saw a Deal,-0.01589858554705882,0.10241876911713242,17,6.442005096238232,False
+Podcast,DashPass Actions – Talked to others,0.0509291782,0.25103510892964886,17,4.929101898008809,False
+Podcast,DashPass Aided Awareness,-0.003753710813529413,0.037459647524463596,17,9.979364257216794,False
+Podcast,DashPass Aided Awareness (DD aware non-users),-0.0117813843717647,0.16594744738706663,17,14.085564323389429,False
+Podcast,DashPass Aided Awareness (DD users),0.0029974510435294118,0.06948277691426338,17,23.180621102805212,False
+Podcast,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP aware non-users),0.06312180886470588,0.2531891731413933,17,4.011120367036285,False
+Podcast,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP users),0.08050956642411766,0.18956795090361656,17,2.354601562564484,False
+Podcast,DashPass Benefits Awareness: $0 delivery fees + 1 Other Benefit,-0.004903281979411767,0.09822868302656046,17,20.033251899240085,False
+Podcast,DashPass Benefits Awareness: $0 delivery fees on eligible orders,-0.002304861052941177,0.07708131777705372,17,33.44293473946819,False
+Podcast,DashPass Benefits Awareness: Ability to add someone in your household to your DashPass membership for free,0.04840466065941176,0.11504309226074547,17,2.376694530929979,False
+Podcast,DashPass Benefits Awareness: Access to exclusive deals for DashPass members,-0.013844340314117647,0.1003955611896906,17,7.251740343836614,False
+Podcast,DashPass Benefits Awareness: Discounted rides with Lyft,-0.013393441318823529,0.13002301939848276,17,9.707962001949765,False
+Podcast,DashPass Benefits Awareness: Max [HBO] subscription included at no extra cost,0.08007145906470589,0.18256157682428728,17,2.279983142017669,False
+Podcast,DashPass Benefits Awareness: Reduced service fees on eligible orders,-0.01959649729529412,0.08233227036671181,17,4.201376864756488,False
+Podcast,DashPass Benefits: Consistently adds valuable perks and benefits for members,0.014449274890588235,0.06946987447592848,17,4.807845030422861,False
+Podcast,DashPass Benefits: Makes members' lives better,0.08719756409200001,0.31202590338799746,17,3.5783786696012125,False
+Podcast,"DashPass Benefits: Provides more value than other non-delivery subscription services (e.g. TV streaming, audio streaming, fitness, fashion, etc)",0.07474793936764705,0.2653751480454831,17,3.550267074791693,False
+Podcast,DashPass Benefits: Save more than other delivery subscription services,0.005863928051764706,0.046103444945122425,17,7.862211906104123,False
+Podcast,DashPass Benefits: Saves subscription members more money than non-members who use the delivery service,0.01932552962864706,0.08753108016105174,17,4.529297868830496,False
+Podcast,DashPass Worth,0.0704487896764706,0.15107375054686786,17,2.14444777888534,False
+Podcast,First Choice Consideration,-0.05538214092235294,0.17461926695216545,17,3.1529887440968696,False
+Podcast,More than Restaurant Aided Awareness,-0.007785262344705882,0.054583467691943756,17,7.011127599195356,False
+Podcast,More than Restaurant Aided Awareness: Alcoholic Beverages,-0.01599862734882353,0.10822607049850275,17,6.76470975533168,False
+Podcast,More than Restaurant Aided Awareness: Baby Supplies,-0.028460657608764706,0.10637214540845173,17,3.737515375459684,False
+Podcast,More than Restaurant Aided Awareness: Flowers,-0.02995607688411765,0.11273023316348584,17,3.76318413120558,False
+Podcast,More than Restaurant Aided Awareness: Fresh Food & Produce,-0.025449588775882354,0.06700883923359381,17,2.6330028285995586,False
+Podcast,More than Restaurant Aided Awareness: Health & Medicine,0.004980705187647059,0.08787556622431339,17,17.643197682580926,False
+Podcast,More than Restaurant Aided Awareness: Household Essentials,0.04537838123705882,0.23496074295293393,17,5.177812353540948,False
+Podcast,More than Restaurant Aided Awareness: Packaged Food & Non-Alcoholic Beverages,-0.025146915382352943,0.10311336786125137,17,4.100438017682759,False
+Podcast,More than Restaurant Aided Awareness: Personal Care & Beauty,0.1217957267164706,0.4220367462243126,17,3.465119488196625,False
+Podcast,More than Restaurant Aided Awareness: Pet Supplies,0.13477977652941175,0.5692344685049759,17,4.223441254784668,False
+Podcast,More than Restaurant Aided Awareness: Prepared Restaurant Food,0.0009793729400000006,0.13525465108164497,17,138.10331647681105,False
+Podcast,More than Restaurant Consideration,0.008150472911764706,0.06456421056547855,17,7.921529371907253,False
+Podcast,More than Restaurant Consideration: Alcoholic Beverages,-0.005332487519411764,0.09142740870621889,17,17.145358216666658,False
+Podcast,More than Restaurant Consideration: Baby Supplies,-0.04046260028235294,0.14576703229055252,17,3.6025127222020448,False
+Podcast,More than Restaurant Consideration: Flowers,-0.011891352463529414,0.1280546619988496,17,10.768721421015076,False
+Podcast,More than Restaurant Consideration: Fresh Food & Produce,0.012409084609411767,0.08907844526003597,17,7.178486412484748,False
+Podcast,More than Restaurant Consideration: Health & Medicine,-0.00922385786764706,0.13122570133089073,17,14.226769667729656,False
+Podcast,More than Restaurant Consideration: Household Essentials,0.003927548864705882,0.14366754644712873,17,36.57944213964284,False
+Podcast,More than Restaurant Consideration: Packaged Food & Non-Alcoholic Beverages,-0.012127676796470588,0.050627786408372955,17,4.174565933609537,False
+Podcast,More than Restaurant Consideration: Personal Care & Beauty,-0.0419266347417647,0.14818873506721175,17,3.534477211918832,False
+Podcast,More than Restaurant Consideration: Pet Supplies,0.022764749205882354,0.11774031417181686,17,5.172045301574992,False
+Podcast,More than Restaurant Consideration: Prepared Restaurant Food,-0.0032206233588235288,0.07392275127388137,17,22.952932720727965,False
+Podcast,Unaided Brand Awareness (Any Mention),0.008474698161764705,0.11367327656302664,17,13.413253710425506,False
+Podcast,Unaided Brand Awareness (Any Mention) - Amazon,-0.036711712652941174,0.1449000599289315,17,3.946970856379341,False
+Podcast,Unaided Brand Awareness (Any Mention) - GrubHub,-0.019515523488235296,0.22473908603727963,17,11.51591378897732,False
+Podcast,Unaided Brand Awareness (Any Mention) - Instacart,0.07572066394705881,0.17833038368900683,17,2.355108558130038,False
+Podcast,Unaided Brand Awareness (Any Mention) - Uber Eats,-0.03324141108,0.05868104509632455,17,1.7652994620204476,False
+Podcast,Unaided Brand Awareness (First Mention),-0.030214169415294118,0.12624847372034817,17,4.178452565915727,False
+Social,Affinity ,0.0031015580157000002,0.019051125784980912,40,6.142437345535581,False
+Social,Aided Awareness,-0.000470552399355,0.002395254305552758,40,5.090303032852459,False
+Social,BA MDS: Is different,0.0032033366481000005,0.020216980377859108,40,6.311225637133841,False
+Social,BA MDS: Meets needs,0.00115857586135,0.01664844575888123,40,14.369750237573625,False
+Social,BA MDS: Sets trends,0.0028023968489,0.011580115954144323,40,4.132218446752023,False
+Social,BA: Has my favorite brands or stores,0.001185046822725,0.004525045660708186,40,3.8184530551315277,False
+Social,BA: Is a brand I trust,0.0012631670538500001,0.005973723934416628,40,4.729163823747101,False
+Social,BA: Is an essential part of my life,0.0032863294877500003,0.021934359193634,40,6.674424848572155,False
+Social,BA: Makes my life easier,-0.00034402765977499994,0.007526845327034344,40,21.878605144589336,False
+Social,BA: Offers a wide selection of brands or stores across a variety of categories,-0.0014414037179,0.011622551288860188,40,8.063355980372545,False
+Social,Brand Familiarity,0.00054508706265,0.0034413710757773336,40,6.313433782571786,False
+Social,Brand Favorability,0.0013564956073249998,0.004837299992639312,40,3.566027023248851,False
+Social,Consideration (Top 2 Box),0.0037940635617499997,0.02130335499402674,40,5.614917791256147,False
+Social,DashPass Actions – Saw a Deal,-0.0003757857982499998,0.020532069754220082,40,54.6376947980367,False
+Social,DashPass Actions – Talked to others,-0.0010604824495000001,0.0105669834069263,40,9.964317101059482,False
+Social,DashPass Aided Awareness,0.0006421879990475,0.004447957217172239,40,6.926254031170773,False
+Social,DashPass Aided Awareness (DD aware non-users),0.003572322928,0.024159787837159368,40,6.7630469932586585,False
+Social,DashPass Aided Awareness (DD users),0.00037400226372499997,0.005179254589296527,40,13.848190483426539,False
+Social,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP aware non-users),0.0012198771182749999,0.010717877246012789,40,8.786030236527997,False
+Social,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP users),0.00584308353225,0.03398944362582306,40,5.817038801212332,False
+Social,DashPass Benefits Awareness: $0 delivery fees + 1 Other Benefit,0.00403939496275,0.014631702440770568,40,3.622250999394567,False
+Social,DashPass Benefits Awareness: $0 delivery fees on eligible orders,0.003706978213,0.012307700441984303,40,3.320143722135305,False
+Social,DashPass Benefits Awareness: Ability to add someone in your household to your DashPass membership for free,0.0056350983791,0.025353220845335617,40,4.499162062434988,False
+Social,DashPass Benefits Awareness: Access to exclusive deals for DashPass members,0.0017259950664500004,0.013063696448637405,40,7.5687913033880285,False
+Social,DashPass Benefits Awareness: Discounted rides with Lyft,0.0027289826843125,0.016191401311059863,40,5.93312717011207,False
+Social,DashPass Benefits Awareness: Max [HBO] subscription included at no extra cost,0.0039517253284999995,0.016043965256981943,40,4.05998998494967,False
+Social,DashPass Benefits Awareness: Reduced service fees on eligible orders,-0.0005652059805,0.002845699896745274,40,5.034801461633285,False
+Social,DashPass Benefits: Consistently adds valuable perks and benefits for members,0.0018714344533325004,0.017476494173511978,40,9.338555321770013,False
+Social,DashPass Benefits: Makes members' lives better,0.0014606496755249997,0.013551626849105863,40,9.277807729108636,False
+Social,"DashPass Benefits: Provides more value than other non-delivery subscription services (e.g. TV streaming, audio streaming, fitness, fashion, etc)",0.00257799608825,0.017637909568827527,40,6.841713084522375,False
+Social,DashPass Benefits: Save more than other delivery subscription services,0.004322924396324999,0.025169389331615603,40,5.822306157612329,False
+Social,DashPass Benefits: Saves subscription members more money than non-members who use the delivery service,0.00121770078155,0.011928390261557158,40,9.795830340499265,False
+Social,DashPass Worth,0.0020925009832500003,0.007816237769627766,40,3.7353567965773933,False
+Social,First Choice Consideration,0.004440520342975001,0.04529036402090964,40,10.19933713231603,False
+Social,More than Restaurant Aided Awareness,-0.0010844756286,0.004814287940560398,40,4.439277207893907,False
+Social,More than Restaurant Aided Awareness: Alcoholic Beverages,-0.00199430054694,0.02736819821854873,40,13.72320649489955,False
+Social,More than Restaurant Aided Awareness: Baby Supplies,-0.00603385355575,0.023634589816983208,40,3.9169975868009708,False
+Social,More than Restaurant Aided Awareness: Flowers,-0.0081910379095,0.03426387126033087,40,4.183092745864537,False
+Social,More than Restaurant Aided Awareness: Fresh Food & Produce,-0.006567077115,0.020987853122359262,40,3.195920004414211,False
+Social,More than Restaurant Aided Awareness: Health & Medicine,-0.01220466127225,0.05014692654239144,40,4.108833946617722,False
+Social,More than Restaurant Aided Awareness: Household Essentials,-0.0038926065683750006,0.014838449083209951,40,3.811957058224967,False
+Social,More than Restaurant Aided Awareness: Packaged Food & Non-Alcoholic Beverages,-0.00659119311045,0.025033704938194436,40,3.79805363288549,False
+Social,More than Restaurant Aided Awareness: Personal Care & Beauty,-0.002266313194725,0.009648719320341052,40,4.25745185740396,False
+Social,More than Restaurant Aided Awareness: Pet Supplies,-0.00696783253555,0.02791606791971423,40,4.006420616064749,False
+Social,More than Restaurant Aided Awareness: Prepared Restaurant Food,-0.006707965035499999,0.021420053766594827,40,3.1932268062274143,False
+Social,More than Restaurant Consideration,0.00241425845575,0.016140749647784464,40,6.685593089398653,False
+Social,More than Restaurant Consideration: Alcoholic Beverages,-0.0015231205477499999,0.018583483779177283,40,12.200927764141435,False
+Social,More than Restaurant Consideration: Baby Supplies,-0.0074064868925,0.03839440546101721,40,5.183888936588327,False
+Social,More than Restaurant Consideration: Flowers,-0.0035611370289499998,0.01406423572718482,40,3.9493666244378294,False
+Social,More than Restaurant Consideration: Fresh Food & Produce,0.00205371604575,0.018127656864317353,40,8.826759133440614,False
+Social,More than Restaurant Consideration: Health & Medicine,-0.005860571742,0.01954896961997343,40,3.335676190067776,False
+Social,More than Restaurant Consideration: Household Essentials,2.306493425000087e-06,0.006965543780009131,40,3019.9712275394277,False
+Social,More than Restaurant Consideration: Packaged Food & Non-Alcoholic Beverages,-0.0015539994697499999,0.02120548195982947,40,13.645745943041351,False
+Social,More than Restaurant Consideration: Personal Care & Beauty,-0.0037212648262,0.01296185061429829,40,3.4831841375649657,False
+Social,More than Restaurant Consideration: Pet Supplies,-0.0061846658577,0.02128053066964035,40,3.4408537436417483,False
+Social,More than Restaurant Consideration: Prepared Restaurant Food,-0.0025166076581250004,0.008508821470189068,40,3.381067939898335,False
+Social,Unaided Brand Awareness (Any Mention),-0.002524204367125,0.0162575624644014,40,6.440668067981484,False
+Social,Unaided Brand Awareness (Any Mention) - Amazon,-0.002541201045775,0.015482112992367097,40,6.092439249585409,False
+Social,Unaided Brand Awareness (Any Mention) - GrubHub,-0.0105808809733,0.0410511450640127,40,3.879747363910619,False
+Social,Unaided Brand Awareness (Any Mention) - Instacart,0.0005825572137749997,0.026213835527786628,40,44.99787301219681,False
+Social,Unaided Brand Awareness (Any Mention) - Uber Eats,0.004523520139999999,0.026537962414781326,40,5.866661713322522,False
+Social,Unaided Brand Awareness (First Mention),-0.00192529406725,0.01525724363916876,40,7.924630267500638,False

@@ -1,0 +1,63 @@
+TIME_DATE,METRIC_NAME,MEAN_LIFT,STD_LIFT,COUNT,AVG_SIGNIFICANCE,EXPOSED_POP,CONTROL_POP
+2025-10-01,Affinity ,0.02954660979,,1,0.3371077555,470,348
+2025-10-01,Aided Awareness,0.02783167622,,1,0.6718985124,470,348
+2025-10-01,BA MDS: Is different,-0.01867666887,,1,0.2691701992,470,348
+2025-10-01,BA MDS: Meets needs,-0.03409328403,,1,0.4774970837,470,348
+2025-10-01,BA MDS: Sets trends,0.004254067034,,1,0.0613927088,470,348
+2025-10-01,BA: Has my favorite brands or stores,-0.03829099857,,1,0.5463926745,470,348
+2025-10-01,BA: Is a brand I trust,-0.01496817815,,1,0.2304381824,470,348
+2025-10-01,BA: Is an essential part of my life,0.00300054514,,1,0.03689747653,470,348
+2025-10-01,BA: Makes my life easier,-0.01734591473,,1,0.2790838459,470,348
+2025-10-01,BA: Offers a wide selection of brands or stores across a variety of categories,-0.0668021946,,1,0.8350541191,470,348
+2025-10-01,Brand Familiarity,0.03661738982,,1,0.587377694,470,348
+2025-10-01,Brand Favorability,0.07175314611,,1,0.8640387087,470,348
+2025-10-01,Consideration (Top 2 Box),-0.02203994294,,1,0.3335072122,470,348
+2025-10-01,DashPass Actions – Saw a Deal,-0.08906447353,,1,0.5938546519,470,348
+2025-10-01,DashPass Actions – Talked to others,-0.06673044421,,1,0.453395426,470,348
+2025-10-01,DashPass Aided Awareness,-0.01836455444,,1,0.3455688009,470,348
+2025-10-01,DashPass Aided Awareness (DD aware non-users),-0.1238685408,,1,0.5266339147,470,348
+2025-10-01,DashPass Aided Awareness (DD users),0.004923194076,,1,0.07033673124,470,348
+2025-10-01,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP aware non-users),0.1611804536,,1,0.5181947386,470,348
+2025-10-01,DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP users),-0.05486623736,,1,0.3988751486,470,348
+2025-10-01,DashPass Benefits Awareness: $0 delivery fees + 1 Other Benefit,-0.01633958869,,1,0.2028866496,470,348
+2025-10-01,DashPass Benefits Awareness: $0 delivery fees on eligible orders,-0.009563805568,,1,0.121857925,470,348
+2025-10-01,DashPass Benefits Awareness: Ability to add someone in your household to your DashPass membership for free,-0.08345290505,,1,0.7385875419,470,348
+2025-10-01,DashPass Benefits Awareness: Access to exclusive deals for DashPass members,-0.05397435019,,1,0.6195181932,470,348
+2025-10-01,DashPass Benefits Awareness: Discounted rides with Lyft,-0.163872789,,1,0.9710770768,470,348
+2025-10-01,DashPass Benefits Awareness: Max [HBO] subscription included at no extra cost,-0.05410092417,,1,0.4798332872,470,348
+2025-10-01,DashPass Benefits Awareness: Reduced service fees on eligible orders,-0.08304507933,,1,0.8273561853,470,348
+2025-10-01,DashPass Benefits: Consistently adds valuable perks and benefits for members,-0.05713888945,,1,0.5942475566,470,348
+2025-10-01,DashPass Benefits: Makes members' lives better,-0.02734349497,,1,0.3394310557,470,348
+2025-10-01,"DashPass Benefits: Provides more value than other non-delivery subscription services (e.g. TV streaming, audio streaming, fitness, fashion, etc)",-0.08237012148,,1,0.7571334766,470,348
+2025-10-01,DashPass Benefits: Save more than other delivery subscription services,-0.01861394088,,1,0.2105740031,470,348
+2025-10-01,DashPass Benefits: Saves subscription members more money than non-members who use the delivery service,-0.05676949415,,1,0.6303991131,470,348
+2025-10-01,DashPass Worth,-0.226022726,,1,0.9654229026,470,348
+2025-10-01,First Choice Consideration,-0.09844888718,,1,0.5460863613,470,348
+2025-10-01,More than Restaurant Aided Awareness,0.04383467983,,1,0.6141098254,470,348
+2025-10-01,More than Restaurant Aided Awareness: Alcoholic Beverages,-0.05610559911,,1,0.4401541338,470,348
+2025-10-01,More than Restaurant Aided Awareness: Baby Supplies,0.1717947182,,1,0.8475757301,470,348
+2025-10-01,More than Restaurant Aided Awareness: Flowers,-0.1075607851,,1,0.7212841624,470,348
+2025-10-01,More than Restaurant Aided Awareness: Fresh Food & Produce,0.1529798172,,1,0.8799838429,470,348
+2025-10-01,More than Restaurant Aided Awareness: Health & Medicine,0.09458484407,,1,0.6244025133,470,348
+2025-10-01,More than Restaurant Aided Awareness: Household Essentials,0.03362301931,,1,0.2609714507,470,348
+2025-10-01,More than Restaurant Aided Awareness: Packaged Food & Non-Alcoholic Beverages,-0.02626665065,,1,0.2462074897,470,348
+2025-10-01,More than Restaurant Aided Awareness: Personal Care & Beauty,-0.1504438156,,1,0.8862790517,470,348
+2025-10-01,More than Restaurant Aided Awareness: Pet Supplies,-0.05338808668,,1,0.3866964956,470,348
+2025-10-01,More than Restaurant Aided Awareness: Prepared Restaurant Food,0.04263601102,,1,0.4619493392,470,348
+2025-10-01,More than Restaurant Consideration,-0.05898375394,,1,0.7213534468,470,348
+2025-10-01,More than Restaurant Consideration: Alcoholic Beverages,-0.1792478946,,1,0.9356122015,470,348
+2025-10-01,More than Restaurant Consideration: Baby Supplies,-0.05222164377,,1,0.3363632604,470,348
+2025-10-01,More than Restaurant Consideration: Flowers,-0.0007719883732,,1,0.004931915089,470,348
+2025-10-01,More than Restaurant Consideration: Fresh Food & Produce,-0.04656153957,,1,0.3535181215,470,348
+2025-10-01,More than Restaurant Consideration: Health & Medicine,0.02204795922,,1,0.1413986131,470,348
+2025-10-01,More than Restaurant Consideration: Household Essentials,-0.005590295713,,1,0.03896596633,470,348
+2025-10-01,More than Restaurant Consideration: Packaged Food & Non-Alcoholic Beverages,0.05210986126,,1,0.4086953716,470,348
+2025-10-01,More than Restaurant Consideration: Personal Care & Beauty,0.007981841465,,1,0.05408560294,470,348
+2025-10-01,More than Restaurant Consideration: Pet Supplies,0.01494101097,,1,0.09774956582,470,348
+2025-10-01,More than Restaurant Consideration: Prepared Restaurant Food,0.007216268197,,1,0.07637306375,470,348
+2025-10-01,Unaided Brand Awareness (Any Mention),0.03052004832,,1,0.2658892955,470,348
+2025-10-01,Unaided Brand Awareness (Any Mention) - Amazon,-0.05955786358,,1,0.3338410672,470,348
+2025-10-01,Unaided Brand Awareness (Any Mention) - GrubHub,0.3059719486,,1,0.7357169021,470,348
+2025-10-01,Unaided Brand Awareness (Any Mention) - Instacart,0.100801463,,1,0.4861645584,470,348
+2025-10-01,Unaided Brand Awareness (Any Mention) - Uber Eats,0.05289714844,,1,0.3769860671,470,348
+2025-10-01,Unaided Brand Awareness (First Mention),0.01073700698,,1,0.06823521162,470,348
