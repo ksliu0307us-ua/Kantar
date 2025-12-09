@@ -52,12 +52,12 @@ if 'analyzer' not in st.session_state:
     st.session_state.analyzer = None
 if 'merged_data' not in st.session_state:
     st.session_state.merged_data = None
-if 'stability' not in st.session_state:
-    st.session_state.stability = None
-if 'ts_data' not in st.session_state:
-    st.session_state.ts_data = None
-if 'filter_results' not in st.session_state:
-    st.session_state.filter_results = None
+if 'lift_by_month_group' not in st.session_state:
+    st.session_state.lift_by_month_group = None
+if 'top_bottom_filters' not in st.session_state:
+    st.session_state.top_bottom_filters = None
+if 'unstable_patterns' not in st.session_state:
+    st.session_state.unstable_patterns = None
 
 def main():
     """Main application."""
@@ -149,7 +149,7 @@ def show_home():
             st.info("⏳ No Data Loaded")
     
     with col2:
-        if st.session_state.stability is not None:
+        if st.session_state.lift_by_month_group is not None:
             st.success("✅ Analysis Complete")
         else:
             st.info("⏳ Analysis Pending")
@@ -205,7 +205,7 @@ def show_data_loading():
                 st.info(f"⏭️ {file} (optional)")
         
         if codebook_files:
-            st.success(f"✅ Codebook mapping found")
+            st.success("✅ Codebook mapping found")
         else:
             st.warning("⚠️ Codebook mapping not found")
     
@@ -233,16 +233,14 @@ def show_data_loading():
         
         col1, col2, col3, col4, col5 = st.columns(5)
         
+        col1, col2, col3 = st.columns(3)
+        
         with col1:
             st.metric("Transformed Data", f"{len(analyzer.transformed_data):,}" if analyzer.transformed_data is not None else "0")
         with col2:
-            st.metric("Metrics", f"{len(analyzer.metrics):,}" if analyzer.metrics is not None else "0")
-        with col3:
-            st.metric("Answers", f"{len(analyzer.answers):,}" if analyzer.answers is not None else "0")
-        with col4:
-            st.metric("Filters", f"{len(analyzer.filters):,}" if analyzer.filters is not None else "0")
-        with col5:
             st.metric("Filter IDs", f"{len(analyzer.filter_ids):,}" if analyzer.filter_ids is not None else "0")
+        with col3:
+            st.metric("Filters", f"{len(analyzer.filters):,}" if analyzer.filters is not None else "0")
 
 def show_analysis():
     """Analysis interface."""
@@ -252,15 +250,15 @@ def show_analysis():
         st.warning("⚠️ Please load data first in the Data Loading section.")
         return
     
-    st.subheader("Step 1: Clean and Standardize Data")
+    st.subheader("Step 1: Merge Data and Extract Survey Month")
     
-    if st.button("🧹 Clean and Standardize", type="primary", use_container_width=True):
-        with st.spinner("Cleaning and standardizing data..."):
+    if st.button("🔄 Merge Data", type="primary", use_container_width=True):
+        with st.spinner("Merging data and extracting survey_month..."):
             try:
                 analyzer = st.session_state.analyzer
-                analyzer.clean_and_standardize()
+                analyzer.merge_data()
                 st.session_state.merged_data = analyzer.merged_data
-                st.success("✅ Data cleaned and standardized!")
+                st.success("✅ Data merged successfully!")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
@@ -268,35 +266,58 @@ def show_analysis():
     
     if st.session_state.merged_data is not None:
         st.markdown("---")
-        st.subheader("Step 2: Run Time Series Analysis")
+        st.subheader("Step 2: Run Analysis")
         
-        if st.button("📊 Run Time Series Analysis", type="primary", use_container_width=True):
-            with st.spinner("Running time series analysis..."):
-                try:
-                    analyzer = st.session_state.analyzer
-                    stability, ts_data = analyzer.time_series_analysis()
-                    st.session_state.stability = stability
-                    st.session_state.ts_data = ts_data
-                    st.success("✅ Time series analysis complete!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-                    st.exception(e)
+        col1, col2 = st.columns(2)
         
-        st.markdown("---")
-        st.subheader("Step 3: Run Filter-Level Analysis")
+        with col1:
+            if st.button("📊 Analyze Lift by Month & Group", type="primary", use_container_width=True):
+                with st.spinner("Analyzing lift by month and group..."):
+                    try:
+                        analyzer = st.session_state.analyzer
+                        lift_by_month_group = analyzer.analyze_lift_by_month_and_group()
+                        st.session_state.lift_by_month_group = lift_by_month_group
+                        st.success("✅ Analysis complete!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        st.exception(e)
+            
+            if st.button("🔝 Identify Top/Bottom Filters", type="primary", use_container_width=True):
+                with st.spinner("Identifying top and bottom filters..."):
+                    try:
+                        analyzer = st.session_state.analyzer
+                        top_bottom = analyzer.identify_top_bottom_filters()
+                        st.session_state.top_bottom_filters = top_bottom
+                        st.success("✅ Analysis complete!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        st.exception(e)
         
-        if st.button("🔍 Run Filter Analysis", type="primary", use_container_width=True):
-            with st.spinner("Running filter-level analysis..."):
-                try:
-                    analyzer = st.session_state.analyzer
-                    filter_results = analyzer.filter_level_analysis()
-                    st.session_state.filter_results = filter_results
-                    st.success("✅ Filter analysis complete!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-                    st.exception(e)
+        with col2:
+            if st.button("⚠️ Identify Unstable Patterns", type="primary", use_container_width=True):
+                with st.spinner("Identifying unstable patterns..."):
+                    try:
+                        analyzer = st.session_state.analyzer
+                        unstable = analyzer.identify_unstable_patterns()
+                        st.session_state.unstable_patterns = unstable
+                        st.success("✅ Analysis complete!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        st.exception(e)
+            
+            if st.button("📈 Create Visualizations", type="primary", use_container_width=True):
+                with st.spinner("Creating visualizations..."):
+                    try:
+                        analyzer = st.session_state.analyzer
+                        analyzer.create_visualizations()
+                        st.success("✅ Visualizations created!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        st.exception(e)
         
         # Show merged data preview
         st.markdown("---")
@@ -308,15 +329,15 @@ def show_analysis():
         with col1:
             st.metric("Total Rows", f"{len(df):,}")
         with col2:
-            if 'METRIC_NAME' in df.columns:
-                st.metric("Unique Metrics", f"{df['METRIC_NAME'].nunique():,}")
+            if 'survey_month' in df.columns:
+                st.metric("Unique Months", f"{df['survey_month'].nunique():,}")
             else:
-                st.metric("Unique Metrics", "N/A")
+                st.metric("Unique Months", "N/A")
         with col3:
-            if 'CHANNEL' in df.columns:
-                st.metric("Unique Channels", f"{df['CHANNEL'].nunique():,}")
+            if 'GROUP_NAME' in df.columns:
+                st.metric("Unique Groups", f"{df['GROUP_NAME'].nunique():,}")
             else:
-                st.metric("Unique Channels", "N/A")
+                st.metric("Unique Groups", "N/A")
         
         # Show sample data
         if st.checkbox("Show Sample Data"):
@@ -326,35 +347,32 @@ def show_results():
     """Results display."""
     st.header("📈 Analysis Results")
     
-    if st.session_state.stability is None:
-        st.warning("⚠️ Please run time series analysis first in the Analysis section.")
+    if st.session_state.lift_by_month_group is None:
+        st.warning("⚠️ Please run analysis first in the Analysis section.")
         return
     
-    stability = st.session_state.stability
-    ts_data = st.session_state.ts_data
-    filter_results = st.session_state.filter_results
+    lift_by_month_group = st.session_state.lift_by_month_group
+    top_bottom = st.session_state.top_bottom_filters
+    unstable = st.session_state.unstable_patterns
     
     # Tabs for different result types
-    tab1, tab2, tab3, tab4 = st.tabs(["Stability Analysis", "Time Series Data", "Filter Analysis", "Signal vs Noise"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Lift by Month & Group", "Top/Bottom Filters", "Unstable Patterns", "Summary"])
     
     with tab1:
-        if stability is not None and len(stability) > 0:
-            st.subheader("Metric Stability Analysis")
-            
-            # Find metric column name
-            metric_col = 'METRIC_NAME' if 'METRIC_NAME' in stability.columns else ('METRIC' if 'METRIC' in stability.columns else 'metric_name')
+        if lift_by_month_group is not None and len(lift_by_month_group) > 0:
+            st.subheader("Average Lift by Month and Group")
             
             # Filter options
             col1, col2 = st.columns(2)
             with col1:
-                min_stability = st.slider("Min Stability Score", 0.0, 1.0, 0.0, 0.01)
+                selected_month = st.selectbox("Filter by Month", ["All"] + sorted(lift_by_month_group['survey_month'].unique().tolist()))
             with col2:
-                signal_type_filter = st.selectbox("Signal Type", ["All", "Signal", "Uncertain", "Noise"])
+                min_lift = st.number_input("Min Average Lift (%)", value=-100.0, step=1.0)
             
             # Filter data
-            filtered = stability[stability['stability_score'] >= min_stability].copy()
-            if signal_type_filter != "All" and 'signal_type' in filtered.columns:
-                filtered = filtered[filtered['signal_type'] == signal_type_filter]
+            filtered = lift_by_month_group[lift_by_month_group['avg_lift'] >= min_lift].copy()
+            if selected_month != "All":
+                filtered = filtered[filtered['survey_month'] == selected_month]
             
             st.metric("Filtered Results", len(filtered))
             st.dataframe(filtered.head(500), use_container_width=True)
@@ -362,89 +380,101 @@ def show_results():
             # Download button
             csv = filtered.to_csv(index=False)
             st.download_button(
-                label="📥 Download Stability Analysis CSV",
+                label="📥 Download Lift by Month & Group CSV",
                 data=csv,
-                file_name=f"stability_analysis_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"lift_by_month_group_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv"
             )
         else:
-            st.info("Run time series analysis to see results here.")
+            st.info("Run analysis to see results here.")
     
     with tab2:
-        if ts_data is not None and len(ts_data) > 0:
-            st.subheader("Time Series Data")
-            
-            # Find metric column name
-            metric_col = 'METRIC_NAME' if 'METRIC_NAME' in ts_data.columns else ('METRIC' if 'METRIC' in ts_data.columns else 'metric_name')
-            time_col = 'timestamp' if 'timestamp' in ts_data.columns else None
-            
-            if metric_col and metric_col in ts_data.columns:
-                # Metric selector
-                metrics_list = sorted(ts_data[metric_col].unique())
-                selected_metric = st.selectbox("Select Metric", metrics_list)
-                
-                metric_ts = ts_data[ts_data[metric_col] == selected_metric].sort_values(time_col if time_col else metric_col)
-                st.dataframe(metric_ts, use_container_width=True)
-                
-                # Download button
-                csv = metric_ts.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Time Series CSV",
-                    data=csv,
-                    file_name=f"time_series_{selected_metric[:50]}_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.dataframe(ts_data.head(500), use_container_width=True)
-        else:
-            st.info("Run time series analysis to see results here.")
-    
-    with tab3:
-        if filter_results is not None and len(filter_results) > 0:
-            st.subheader("Filter-Level Analysis")
-            
-            filter_type = st.selectbox("Select Filter Type", list(filter_results.keys()))
-            
-            if filter_type in filter_results:
-                results = filter_results[filter_type]
-                
-                st.markdown(f"**Analysis by {filter_type}**")
-                
-                if 'by_filter' in results:
-                    st.dataframe(results['by_filter'].head(500), use_container_width=True)
-                
-                st.markdown("---")
-                st.markdown(f"**Stability by {filter_type}**")
-                
-                if 'stability' in results:
-                    st.dataframe(results['stability'], use_container_width=True)
-        else:
-            st.info("Run filter-level analysis to see results here.")
-    
-    with tab4:
-        if stability is not None and len(stability) > 0:
+        if top_bottom is not None:
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader("Signal Metrics")
-                signal_metrics = stability[stability['signal_type'] == 'Signal'] if 'signal_type' in stability.columns else pd.DataFrame()
-                if len(signal_metrics) > 0:
-                    metric_col = 'METRIC_NAME' if 'METRIC_NAME' in signal_metrics.columns else ('METRIC' if 'METRIC' in signal_metrics.columns else 'metric_name')
-                    st.metric("Count", len(signal_metrics))
-                    st.dataframe(signal_metrics.head(20), use_container_width=True)
+                st.subheader("Top 5 Filters")
+                if 'top_5' in top_bottom:
+                    st.dataframe(top_bottom['top_5'], use_container_width=True)
+                    csv = top_bottom['top_5'].to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Top 5 CSV",
+                        data=csv,
+                        file_name=f"top_5_filters_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
                 else:
-                    st.info("No signal metrics identified.")
+                    st.info("No top filters data available.")
             
             with col2:
-                st.subheader("Noise Metrics")
-                noise_metrics = stability[stability['signal_type'] == 'Noise'] if 'signal_type' in stability.columns else pd.DataFrame()
-                if len(noise_metrics) > 0:
-                    st.metric("Count", len(noise_metrics))
-                    st.dataframe(noise_metrics.head(20), use_container_width=True)
+                st.subheader("Bottom 5 Filters")
+                if 'bottom_5' in top_bottom:
+                    st.dataframe(top_bottom['bottom_5'], use_container_width=True)
+                    csv = top_bottom['bottom_5'].to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Bottom 5 CSV",
+                        data=csv,
+                        file_name=f"bottom_5_filters_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
                 else:
-                    st.info("No noise metrics identified.")
+                    st.info("No bottom filters data available.")
         else:
-            st.info("Run time series analysis to see signal vs noise classification.")
+            st.info("Run top/bottom filter analysis to see results here.")
+    
+    with tab3:
+        if unstable is not None and len(unstable) > 0:
+            st.subheader("Unstable Patterns (High Standard Deviation)")
+            
+            st.markdown("Filters with high coefficient of variation (CV) or high range indicate unstable patterns.")
+            
+            # Filter options
+            min_cv = st.slider("Min CV Threshold", 0.0, 10.0, 0.0, 0.1)
+            
+            filtered_unstable = unstable[unstable['cv'] >= min_cv].copy()
+            
+            st.metric("Unstable Filters", len(filtered_unstable))
+            st.dataframe(filtered_unstable.head(100), use_container_width=True)
+            
+            # Download button
+            csv = filtered_unstable.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Unstable Patterns CSV",
+                data=csv,
+                file_name=f"unstable_patterns_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("Run unstable pattern analysis to see results here.")
+    
+    with tab4:
+        st.subheader("Analysis Summary")
+        
+        summary_text = []
+        
+        if lift_by_month_group is not None and len(lift_by_month_group) > 0:
+            summary_text.append("**Lift by Month & Group:**")
+            summary_text.append(f"- Total combinations: {len(lift_by_month_group)}")
+            summary_text.append(f"- Average lift: {lift_by_month_group['avg_lift'].mean():.2f}%")
+            summary_text.append(f"- Date range: {lift_by_month_group['survey_month'].min()} to {lift_by_month_group['survey_month'].max()}")
+            summary_text.append("")
+        
+        if top_bottom is not None:
+            if 'top_5' in top_bottom:
+                summary_text.append("**Top 5 Filters:**")
+                for i, (_, row) in enumerate(top_bottom['top_5'].iterrows(), 1):
+                    summary_text.append(f"{i}. {row['FILTER_NAME']}: {row['avg_lift']:.2f}%")
+                summary_text.append("")
+        
+        if unstable is not None and len(unstable) > 0:
+            summary_text.append(f"**Unstable Patterns:**")
+            summary_text.append(f"- Found {len(unstable)} unstable filters")
+            summary_text.append(f"- Average CV: {unstable['cv'].mean():.2f}")
+        
+        if summary_text:
+            st.markdown("\n".join(summary_text))
+        else:
+            st.info("Run analyses to see summary here.")
 
 def show_visualizations():
     """Visualizations."""
@@ -574,32 +604,16 @@ def show_reports():
     
     st.subheader("Report Generation")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        include_visualizations = st.checkbox("Generate Visualizations", value=True)
-        include_summary = st.checkbox("Include Summary Statistics", value=True)
-    
-    with col2:
-        include_filter_analysis = st.checkbox("Include Filter Analysis", value=True)
-        include_stability = st.checkbox("Include Stability Analysis", value=True)
-    
     if st.button("📄 Generate Full Report", type="primary", use_container_width=True):
         with st.spinner("Generating report..."):
             try:
                 analyzer = st.session_state.analyzer
                 
-                # Generate visualizations if requested
-                if include_visualizations:
-                    analyzer.generate_visualizations(
-                        stability=st.session_state.stability,
-                        ts_data=st.session_state.ts_data
-                    )
-                
                 # Generate report
-                report_text = analyzer.export_summary_report(
-                    stability=st.session_state.stability,
-                    filter_results=st.session_state.filter_results
+                report_text = analyzer.generate_summary_report(
+                    lift_by_month_group=st.session_state.lift_by_month_group,
+                    top_bottom=st.session_state.top_bottom_filters,
+                    unstable=st.session_state.unstable_patterns
                 )
                 
                 st.success("✅ Report generated!")
@@ -611,7 +625,7 @@ def show_reports():
                 st.download_button(
                     label="📥 Download Report",
                     data=report_text,
-                    file_name=f"comprehensive_analysis_report_{datetime.now().strftime('%Y%m%d')}.txt",
+                    file_name=f"kantar_analysis_summary_{datetime.now().strftime('%Y%m%d')}.txt",
                     mime="text/plain"
                 )
             except Exception as e:
@@ -625,29 +639,25 @@ def show_reports():
     if st.session_state.merged_data is not None:
         df = st.session_state.merged_data
         
-        metric_col = 'METRIC_NAME' if 'METRIC_NAME' in df.columns else ('METRIC' if 'METRIC' in df.columns else None)
-        lift_col = 'LIFT' if 'LIFT' in df.columns else ('lift' if 'lift' in df.columns else None)
-        channel_col = 'CHANNEL' if 'CHANNEL' in df.columns else ('channel' if 'channel' in df.columns else None)
-        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             st.metric("Total Observations", f"{len(df):,}")
         with col2:
-            if lift_col and lift_col in df.columns:
-                st.metric("Average Lift", f"{df[lift_col].mean():.2f}%")
+            if 'LIFT_PERCENTAGE' in df.columns:
+                st.metric("Average Lift", f"{df['LIFT_PERCENTAGE'].mean():.2f}%")
             else:
                 st.metric("Average Lift", "N/A")
         with col3:
-            if channel_col and channel_col in df.columns:
-                st.metric("Channels", df[channel_col].nunique())
+            if 'survey_month' in df.columns:
+                st.metric("Survey Months", df['survey_month'].nunique())
             else:
-                st.metric("Channels", "N/A")
+                st.metric("Survey Months", "N/A")
         with col4:
-            if metric_col and metric_col in df.columns:
-                st.metric("Metrics", df[metric_col].nunique())
+            if 'GROUP_NAME' in df.columns:
+                st.metric("Groups", df['GROUP_NAME'].nunique())
             else:
-                st.metric("Metrics", "N/A")
+                st.metric("Groups", "N/A")
 
 if __name__ == "__main__":
     main()

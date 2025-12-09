@@ -1,21 +1,32 @@
 """
-Comprehensive Kantar BLS Analysis - From Scratch
+🟣 KANTAR BRAND LIFT ANALYSIS PIPELINE (DOORDASH)
 
-This script performs a complete analysis using ALL available data sources:
-- kantar_bls_transformed_data.csv (primary - has extracted time fields)
-- bls_metrics.csv
-- kantar_bls_filter_ids.csv
-- kantar_bls_filters.csv
-- bls_answers.csv (optional)
+Goal: 
+Build a full analysis pipeline using the following Kantar BLS survey data to:
+• Analyze brand lift trends by channel, month, and demographic
+• Separate signal from noise in the aggregate outputs
+• Validate consistency across time and filters
+
+Input files:
+- 'kantar_bls_transformed_data.csv': main aggregate output (with timestamp parsed from LIMITING_FILTER)
+- 'kantar_bls_filter_ids.csv': filter metadata (GROUP_NAME, FILTER_NAME, etc.)
+- 'kantar_bls_filters.csv': filter group taxonomy (e.g. demo, channel, region, recency)
 
 Tasks:
-1. Load and inspect all data
-2. Validate dataset structure
-3. Clean and standardize
-4. Time-series analysis (month-over-month trends)
-5. Signal vs Noise evaluation (using month-over-month variation)
-6. Filter-level insights (channels, demos)
-7. Export all outputs
+1. Read all CSVs into DataFrames
+2. Merge transformed_data with filter_ids and filters using FILTER_ID and ID
+3. Extract `survey_month` (format YYYY-MM) from the LIMITING_FILTER column
+4. Save merged result as `merged_kantar_data.csv`
+5. Perform analysis:
+   - Average LIFT_PERCENTAGE by survey_month and GROUP_NAME (channel, age, etc.)
+   - Highlight top 5 and bottom 5 filters by average lift
+   - Identify filters with high standard deviation (unstable patterns)
+   - Create pivot tables or charts for:
+       a. LIFT_PERCENTAGE over time by top channels
+       b. LIFT_PERCENTAGE boxplots by demographic
+6. Save plots to disk
+7. Output findings to a text file: `kantar_analysis_summary.txt`
+   - Include narrative summary of key trends, stable filters, and notable anomalies
 """
 
 import pandas as pd
@@ -25,7 +36,8 @@ import seaborn as sns
 from pathlib import Path
 from datetime import datetime
 import sys
-from typing import Optional, Dict, List
+import re
+from typing import Optional, Dict
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -50,20 +62,18 @@ class ComprehensiveBLSAnalyzer:
         self.output_dir.mkdir(exist_ok=True)
         
         self.transformed_data = None
-        self.metrics = None
         self.filter_ids = None
         self.filters = None
-        self.answers = None
         self.merged_data = None
         
     def load_all_data(self):
-        """Load all available data sources."""
+        """Task 1: Read all CSVs into DataFrames."""
         print("=" * 80)
-        print("TASK 1: LOADING AND INSPECTING ALL DATA")
+        print("TASK 1: LOADING ALL DATA")
         print("=" * 80)
         print()
         
-        # 1. Load transformed data (primary source with extracted time fields)
+        # 1. Load transformed data (primary source)
         transformed_file = self.data_dir / "kantar_bls_transformed_data.csv"
         if transformed_file.exists():
             print(f"Loading transformed data: {transformed_file.name}")
@@ -72,640 +82,664 @@ class ComprehensiveBLSAnalyzer:
             print(f"  Columns: {list(self.transformed_data.columns)}")
             print()
         else:
-            print(f"  ⚠ Warning: {transformed_file.name} not found")
-            print()
+            raise FileNotFoundError(f"Required file not found: {transformed_file}")
         
-        # 2. Load main metrics table
-        metrics_file = self.data_dir / "bls_metrics.csv"
-        if metrics_file.exists():
-            print(f"Loading metrics: {metrics_file.name}")
-            self.metrics = pd.read_csv(metrics_file, low_memory=False)
-            print(f"  ✓ Loaded {len(self.metrics):,} rows")
-            print()
-        else:
-            print(f"  ⚠ Warning: {metrics_file.name} not found")
-            print()
-        
-        # 3. Load filter_ids
+        # 2. Load filter_ids
         filter_ids_file = self.data_dir / "kantar_bls_filter_ids.csv"
         if filter_ids_file.exists():
             print(f"Loading filter IDs: {filter_ids_file.name}")
             self.filter_ids = pd.read_csv(filter_ids_file, low_memory=False)
             print(f"  ✓ Loaded {len(self.filter_ids):,} rows")
+            print(f"  Columns: {list(self.filter_ids.columns)}")
             print()
         else:
-            print(f"  ⚠ Warning: {filter_ids_file.name} not found")
-            print()
+            raise FileNotFoundError(f"Required file not found: {filter_ids_file}")
         
-        # 4. Load filters
+        # 3. Load filters
         filters_file = self.data_dir / "kantar_bls_filters.csv"
         if filters_file.exists():
             print(f"Loading filters: {filters_file.name}")
             self.filters = pd.read_csv(filters_file, low_memory=False)
             print(f"  ✓ Loaded {len(self.filters):,} rows")
+            print(f"  Columns: {list(self.filters.columns)}")
             print()
         else:
-            print(f"  ⚠ Warning: {filters_file.name} not found")
-            print()
+            raise FileNotFoundError(f"Required file not found: {filters_file}")
         
-        # 5. Load answers (optional, may be large)
-        answers_file = self.data_dir / "bls_answers.csv"
-        if answers_file.exists():
-            print(f"Loading answers: {answers_file.name}")
-            try:
-                self.answers = pd.read_csv(answers_file, low_memory=False, nrows=10000)  # Sample for now
-                print(f"  ✓ Loaded {len(self.answers):,} rows (sampled)")
-                print()
-            except Exception as e:
-                print(f"  ⚠ Could not load answers: {str(e)}")
-                self.answers = None
-                print()
-        else:
-            print(f"  ℹ Note: {answers_file.name} not found (optional)")
-            print()
-        
-        # Display data summary
-        print("DATA SUMMARY")
-        print("-" * 80)
-        if self.transformed_data is not None:
-            print(f"Transformed Data: {len(self.transformed_data):,} rows, {len(self.transformed_data.columns)} columns")
-            print(f"  First 5 rows:")
-            print(self.transformed_data.head())
-            print()
-            # In transformed data, metrics are FOLDER_NAME + FILTER combinations
-            if 'FOLDER_NAME' in self.transformed_data.columns and 'FILTER' in self.transformed_data.columns:
-                unique_metrics = self.transformed_data.groupby(['FOLDER_NAME', 'FILTER']).size().shape[0]
-                print(f"  Unique metric combinations (FOLDER_NAME × FILTER): {unique_metrics}")
-                print(f"  Unique FOLDER_NAME categories: {self.transformed_data['FOLDER_NAME'].nunique()}")
-            print(f"  Date range: {self.transformed_data['SURVEY_MONTH_START'].min() if 'SURVEY_MONTH_START' in self.transformed_data.columns else 'N/A'} to {self.transformed_data['SURVEY_MONTH_END'].max() if 'SURVEY_MONTH_END' in self.transformed_data.columns else 'N/A'}")
+        print("✓ All data loaded successfully!")
         print()
     
-    def validate_structure(self):
-        """Validate dataset structure."""
-        print("=" * 80)
-        print("TASK 2: VALIDATING DATASET STRUCTURE")
-        print("=" * 80)
-        print()
+    def extract_survey_month(self, limiting_filter: str) -> Optional[str]:
+        """
+        Extract survey_month (YYYY-MM format) from LIMITING_FILTER column.
         
-        if self.transformed_data is None:
-            print("  ⚠ Error: No transformed data available")
-            return False
-        
-        df = self.transformed_data.copy()
-        
-        # Check required columns (for transformed data structure)
-        required_cols = {
-            'timestamp': ['SURVEY_MONTH_START', 'SURVEY_MONTH_END', 'SURVEY_MONTH', 'start', 'end', 'month', 'TIMESTAMP', 'TIME_DATE', 'TIME_PERIOD'],
-            'metrics': ['EXPOSED_', 'CONTROL_', 'exposed_pct', 'EXPOSED_PERCENT', 'control_pct', 'CONTROL_PERCENT'],
-            'lift': ['LIFT', 'lift', 'DELTA', 'delta'],
-            'counts': ['EXPOSED_N', 'CONTROL_N', 'exposed_count', 'EXPOSED_POPULATION', 'control_count', 'CONTROL_POPULATION'],
-            'filters': ['FOLDER_NAME', 'FILTER', 'WEIGHT_SET', 'EXPOSED_FILTER', 'filter_name', 'FILTER_NAME', 'channel', 'CHANNEL', 'GROUP_NAME', 'NAME']
-        }
-        
-        found_cols = {}
-        for category, possible_names in required_cols.items():
-            found = [col for col in df.columns if col in possible_names]
-            found_cols[category] = found[0] if found else None
-        
-        print("Column Validation:")
-        print("-" * 80)
-        all_present = True
-        for category, col_name in found_cols.items():
-            status = "✓" if col_name else "✗"
-            print(f"  {status} {category}: {col_name if col_name else 'NOT FOUND'}")
-            if not col_name:
-                all_present = False
-        
-        print()
-        
-        # Check data grain
-        print("Data Grain Analysis:")
-        print("-" * 80)
-        if found_cols['timestamp']:
-            # For transformed data, metric is FOLDER_NAME + FILTER
-            grain_cols = [found_cols['timestamp']]
-            if 'FOLDER_NAME' in df.columns and 'FILTER' in df.columns:
-                grain_cols.extend(['FOLDER_NAME', 'FILTER'])
-            elif 'METRIC' in df.columns:
-                grain_cols.append('METRIC')
-            elif 'METRIC_NAME' in df.columns:
-                grain_cols.append('METRIC_NAME')
-            
-            if found_cols['filters']:
-                grain_cols.append(found_cols['filters'])
-            
-            unique_combinations = df[grain_cols].drop_duplicates()
-            print(f"  Unique combinations: {len(unique_combinations):,}")
-            grain_desc = " × ".join(grain_cols)
-            print(f"  Grain: {grain_desc}")
-            print(f"  Total rows: {len(df):,}")
-            print(f"  Average rows per combination: {len(df) / len(unique_combinations):.1f}")
-        
-        print()
-        print("Validation Result:")
-        print("-" * 80)
-        if all_present:
-            print("  ✓ Dataset structure is valid for analysis")
-        else:
-            print("  ⚠ Some required columns missing - may need transformations")
-        
-        print()
-        return all_present
-    
-    def clean_and_standardize(self):
-        """Clean and standardize data."""
-        print("=" * 80)
-        print("TASK 3: CLEANING AND STANDARDIZING DATA")
-        print("=" * 80)
-        print()
-        
-        if self.transformed_data is None:
-            print("  ⚠ Error: No transformed data available")
+        Handles formats like:
+        - "Timestamp: 3/1/25-3/31/25" -> "2025-03"
+        - "Timestamp: 4/1/25-6/30/25" -> "2025-04" (uses start date)
+        - Other date formats
+        """
+        if pd.isna(limiting_filter) or not isinstance(limiting_filter, str):
             return None
         
+        # Pattern 1: "Timestamp: M/D/YY-M/D/YY"
+        pattern1 = r'Timestamp:\s*(\d{1,2})/(\d{1,2})/(\d{2,4})'
+        match = re.search(pattern1, limiting_filter, re.IGNORECASE)
+        if match:
+            month, day, year = match.groups()
+            year = int(year)
+            if year < 100:
+                year += 2000  # Convert 2-digit to 4-digit year
+            month = int(month)
+            return f"{year:04d}-{month:02d}"
+        
+        # Pattern 2: Look for YYYY-MM format directly
+        pattern2 = r'(\d{4})-(\d{2})'
+        match = re.search(pattern2, limiting_filter)
+        if match:
+            year, month = match.groups()
+            return f"{year}-{month}"
+        
+        # Pattern 3: Look for month names
+        month_map = {
+            'january': '01', 'february': '02', 'march': '03', 'april': '04',
+            'may': '05', 'june': '06', 'july': '07', 'august': '08',
+            'september': '09', 'october': '10', 'november': '11', 'december': '12',
+            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+            'jun': '06', 'jul': '07', 'aug': '08',
+            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+        }
+        
+        for month_name, month_num in month_map.items():
+            pattern = rf'\b{month_name}\s+(\d{4})\b'
+            match = re.search(pattern, limiting_filter, re.IGNORECASE)
+            if match:
+                year = match.group(1)
+                return f"{year}-{month_num}"
+        
+        return None
+    
+    def merge_data(self):
+        """
+        Task 2 & 3: Merge transformed_data with filter_ids and filters.
+        Extract survey_month from LIMITING_FILTER.
+        Save merged result as merged_kantar_data.csv
+        """
+        print("=" * 80)
+        print("TASK 2 & 3: MERGING DATA AND EXTRACTING SURVEY_MONTH")
+        print("=" * 80)
+        print()
+        
+        if self.transformed_data is None or self.filter_ids is None or self.filters is None:
+            raise ValueError("Please load all data first using load_all_data()")
+        
         df = self.transformed_data.copy()
         
-        # Standardize column names (snake_case)
-        print("Standardizing column names...")
-        column_mapping = {}
-        for col in df.columns:
-            # Convert to snake_case if needed
-            new_col = col.lower().replace(' ', '_').replace('-', '_')
-            if new_col != col.lower():
-                column_mapping[col] = new_col
+        # Step 1: Merge with filter_ids using FILTER_ID
+        print("Merging with kantar_bls_filter_ids...")
         
-        if column_mapping:
-            df = df.rename(columns=column_mapping)
-            print(f"  Renamed {len(column_mapping)} columns")
-        
-        # Convert timestamps to datetime
-        print("Converting timestamps...")
-        time_cols = ['start', 'end', 'month', 'timestamp', 'time_date', 'time_period']
-        for col in time_cols:
-            if col in df.columns:
-                try:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
-                    print(f"  ✓ Converted {col} to datetime")
-                except:
-                    pass
-        
-        # Use SURVEY_MONTH_START as primary timestamp if available (transformed data)
-        if 'SURVEY_MONTH_START' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['SURVEY_MONTH_START'], errors='coerce')
-        elif 'SURVEY_MONTH' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['SURVEY_MONTH'], errors='coerce')
-        elif 'start' in df.columns:
-            df['timestamp'] = df['start']
-        elif 'month' in df.columns:
-            df['timestamp'] = df['month']
-        elif 'time_date' in df.columns:
-            df['timestamp'] = df['time_date']
-        
-        # Create metric name from FOLDER_NAME + FILTER if needed
-        if 'FOLDER_NAME' in df.columns and 'FILTER' in df.columns:
-            df['METRIC_NAME'] = df['FOLDER_NAME'] + ' - ' + df['FILTER'].astype(str)
-        elif 'METRIC' in df.columns:
-            df['METRIC_NAME'] = df['METRIC']
-        elif 'metric_name' in df.columns:
-            df['METRIC_NAME'] = df['metric_name']
-        
-        # Convert percentages to numeric
-        print("Converting percentages to numeric...")
-        pct_cols = [col for col in df.columns if 'pct' in col.lower() or 'percent' in col.lower() or col in ['EXPOSED_', 'CONTROL_', 'LIFT', 'DELTA', 'exposed_', 'control_', 'lift', 'delta']]
-        for col in pct_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                print(f"  ✓ Converted {col} to numeric")
-        
-        # Extract channel from WEIGHT_SET or EXPOSED_FILTER
-        if 'WEIGHT_SET' in df.columns or 'EXPOSED_FILTER' in df.columns:
-            print("Extracting channel information...")
-            def extract_channel(row):
-                text = str(row.get('WEIGHT_SET', '')) + ' ' + str(row.get('EXPOSED_FILTER', ''))
+        # Try to find or extract FILTER_ID
+        if 'FILTER_ID' not in df.columns:
+            # Try to extract FILTER_ID from EXPOSED_FILTER or CONTROL_FILTER
+            print("  FILTER_ID not found in transformed_data, attempting to extract from EXPOSED_FILTER/CONTROL_FILTER...")
+            
+            def extract_filter_id(row):
+                """Try to extract numeric FILTER_ID from filter columns."""
                 import re
-                # Pattern: "XM: N. Channel" or "XM: Channel"
-                patterns = [
-                    r'XM:\s*\d+\.\s*(\w+)',  # "XM: 2. Social"
-                    r'XM:\s*(\w+)',  # "XM: Social"
-                ]
-                for pattern in patterns:
-                    match = re.search(pattern, text, re.IGNORECASE)
+                # Check EXPOSED_FILTER first
+                if 'EXPOSED_FILTER' in row.index and pd.notna(row.get('EXPOSED_FILTER')):
+                    exp_filter = str(row['EXPOSED_FILTER'])
+                    # Look for numeric ID pattern
+                    match = re.search(r'(\d{6,})', exp_filter)  # Look for 6+ digit numbers
                     if match:
-                        channel = match.group(1).strip()
-                        if channel.lower() in ['any', 'all']:
-                            return "Any"
-                        if channel.lower().startswith('digital'):
-                            return "Digital"
-                        return channel.title()
+                        return int(match.group(1))
+                
+                # Check CONTROL_FILTER
+                if 'CONTROL_FILTER' in row.index and pd.notna(row.get('CONTROL_FILTER')):
+                    ctrl_filter = str(row['CONTROL_FILTER'])
+                    match = re.search(r'(\d{6,})', ctrl_filter)
+                    if match:
+                        return int(match.group(1))
+                
+                return None
+            
+            df['FILTER_ID'] = df.apply(extract_filter_id, axis=1)
+            extracted_count = df['FILTER_ID'].notna().sum()
+            print(f"  ✓ Extracted FILTER_ID for {extracted_count:,} rows ({extracted_count/len(df)*100:.1f}%)")
+        
+        # Now merge with filter_ids
+        if 'FILTER_ID' in df.columns:
+            # Convert FILTER_ID to numeric if it exists and has values
+            if df['FILTER_ID'].notna().any():
+                # Convert to int64 to match filter_ids
+                df['FILTER_ID'] = pd.to_numeric(df['FILTER_ID'], errors='coerce')
+                
+                # Check if filter_ids has FILTER_ID or ID column
+                if 'FILTER_ID' in self.filter_ids.columns:
+                    # Ensure types match
+                    self.filter_ids['FILTER_ID'] = pd.to_numeric(self.filter_ids['FILTER_ID'], errors='coerce')
+                    df = df.merge(self.filter_ids, on='FILTER_ID', how='left', suffixes=('', '_filter_ids'))
+                    print(f"  ✓ Merged on FILTER_ID: {len(df):,} rows")
+                elif 'ID' in self.filter_ids.columns:
+                    # Ensure types match
+                    self.filter_ids['ID'] = pd.to_numeric(self.filter_ids['ID'], errors='coerce')
+                    df = df.merge(self.filter_ids, left_on='FILTER_ID', right_on='ID', how='left', suffixes=('', '_filter_ids'))
+                    print(f"  ✓ Merged on FILTER_ID=ID: {len(df):,} rows")
+                else:
+                    print("  ⚠ Warning: Cannot find FILTER_ID or ID column in filter_ids, skipping merge")
+            else:
+                print("  ⚠ Warning: No valid FILTER_ID values extracted, proceeding without filter_ids merge")
+                # Remove the empty FILTER_ID column
+                df = df.drop(columns=['FILTER_ID'])
+        else:
+            print("  ⚠ Warning: Could not create FILTER_ID column, proceeding without filter_ids merge")
+        
+        # Step 2: Merge with filters using FILTER_ID and ID
+        print("Merging with kantar_bls_filters...")
+        if 'FILTER_ID' in df.columns and df['FILTER_ID'].notna().any():
+            # Ensure FILTER_ID is numeric
+            df['FILTER_ID'] = pd.to_numeric(df['FILTER_ID'], errors='coerce')
+            
+            if 'ID' in self.filters.columns:
+                # Ensure types match
+                self.filters['ID'] = pd.to_numeric(self.filters['ID'], errors='coerce')
+                df = df.merge(self.filters, left_on='FILTER_ID', right_on='ID', how='left', suffixes=('', '_filters'))
+                print(f"  ✓ Merged on FILTER_ID=ID: {len(df):,} rows")
+            elif 'FILTER_ID' in self.filters.columns:
+                # Ensure types match
+                self.filters['FILTER_ID'] = pd.to_numeric(self.filters['FILTER_ID'], errors='coerce')
+                df = df.merge(self.filters, on='FILTER_ID', how='left', suffixes=('', '_filters'))
+                print(f"  ✓ Merged on FILTER_ID: {len(df):,} rows")
+            else:
+                print("  ⚠ Warning: Cannot find ID or FILTER_ID column in filters, skipping merge")
+        else:
+            print("  ⚠ Warning: FILTER_ID column missing or empty, proceeding without filters merge")
+        
+        # Step 3: Extract survey_month from LIMITING_FILTER
+        print("Extracting survey_month from LIMITING_FILTER...")
+        if 'LIMITING_FILTER' in df.columns:
+            df['survey_month'] = df['LIMITING_FILTER'].apply(self.extract_survey_month)
+            extracted_count = df['survey_month'].notna().sum()
+            print(f"  ✓ Extracted survey_month for {extracted_count:,} rows ({extracted_count/len(df)*100:.1f}%)")
+        else:
+            print("  ⚠ Warning: LIMITING_FILTER column not found")
+            df['survey_month'] = None
+        
+        # Step 4: Identify and standardize LIFT_PERCENTAGE column
+        print("Identifying lift column...")
+        lift_col = None
+        for col in ['LIFT_PERCENTAGE', 'LIFT', 'lift', 'LIFT_PCT', 'DELTA']:
+            if col in df.columns:
+                lift_col = col
+                break
+        
+        if lift_col is None:
+            print("  ⚠ Warning: Could not find lift column. Available columns:", list(df.columns)[:10])
+        else:
+            print(f"  ✓ Using lift column: {lift_col}")
+            # Standardize to LIFT_PERCENTAGE for consistency
+            if lift_col != 'LIFT_PERCENTAGE':
+                df['LIFT_PERCENTAGE'] = pd.to_numeric(df[lift_col], errors='coerce')
+        
+        # Step 5: Extract GROUP_NAME from other columns if merge failed
+        if 'GROUP_NAME' not in df.columns:
+            print("Extracting GROUP_NAME from available columns...")
+            def extract_group_name(row):
+                """Extract GROUP_NAME from WEIGHT_SET or EXPOSED_FILTER."""
+                import re
+                # Check WEIGHT_SET first
+                if 'WEIGHT_SET' in row.index and pd.notna(row.get('WEIGHT_SET')):
+                    weight_set = str(row['WEIGHT_SET'])
+                    # Pattern: "XM: N. Channel" or "XM: Channel"
+                    patterns = [
+                        r'XM:\s*\d+\.\s*(\w+)',  # "XM: 2. Social"
+                        r'XM:\s*(\w+)',  # "XM: Social"
+                    ]
+                    for pattern in patterns:
+                        match = re.search(pattern, weight_set, re.IGNORECASE)
+                        if match:
+                            channel = match.group(1).strip()
+                            if channel.lower() in ['any', 'all']:
+                                return "Any"
+                            if channel.lower().startswith('digital'):
+                                return "Digital"
+                            return channel.title()
+                
+                # Check EXPOSED_FILTER
+                if 'EXPOSED_FILTER' in row.index and pd.notna(row.get('EXPOSED_FILTER')):
+                    exp_filter = str(row['EXPOSED_FILTER'])
+                    patterns = [
+                        r'XM:\s*\d+\.\s*(\w+)',
+                        r'XM:\s*(\w+)',
+                    ]
+                    for pattern in patterns:
+                        match = re.search(pattern, exp_filter, re.IGNORECASE)
+                        if match:
+                            channel = match.group(1).strip()
+                            if channel.lower() in ['any', 'all']:
+                                return "Any"
+                            if channel.lower().startswith('digital'):
+                                return "Digital"
+                            return channel.title()
+                
                 return "Other"
             
-            df['CHANNEL'] = df.apply(extract_channel, axis=1)
-            print(f"  ✓ Extracted channels: {df['CHANNEL'].value_counts().to_dict()}")
+            df['GROUP_NAME'] = df.apply(extract_group_name, axis=1)
+            print(f"  ✓ Extracted GROUP_NAME for {df['GROUP_NAME'].notna().sum():,} rows")
         
-        # Handle missing values
-        print("Handling missing values...")
-        before = len(df)
-        # Drop rows with missing critical fields
-        critical_cols = ['timestamp', 'METRIC' if 'METRIC' in df.columns else 'metric_name']
-        df = df.dropna(subset=[col for col in critical_cols if col in df.columns])
-        after = len(df)
-        print(f"  Removed {before - after:,} rows with missing critical data")
-        
-        # Create unique key
-        print("Creating unique key...")
-        key_parts = ['timestamp', 'METRIC_NAME']
-        if 'CHANNEL' in df.columns:
-            key_parts.append('CHANNEL')
-        elif 'filter_name' in df.columns:
-            key_parts.append('filter_name')
-        
-        if len(key_parts) > 1:
-            df['unique_key'] = df[key_parts].apply(lambda x: '_'.join(x.astype(str)), axis=1)
-            print(f"  ✓ Created unique key: {' × '.join(key_parts)}")
-        
-        print()
-        print(f"Cleaned data: {len(df):,} rows, {len(df.columns)} columns")
+        # Step 6: Save merged data
+        merged_file = self.output_dir / "merged_kantar_data.csv"
+        df.to_csv(merged_file, index=False)
+        print(f"  ✓ Saved merged data: {merged_file.name}")
         print()
         
         self.merged_data = df
         return df
     
-    def time_series_analysis(self):
-        """Perform time-series analysis for each metric."""
+    def analyze_lift_by_month_and_group(self) -> pd.DataFrame:
+        """Task 5a: Calculate average LIFT_PERCENTAGE by survey_month and GROUP_NAME."""
         print("=" * 80)
-        print("TASK 4: TIME-SERIES ANALYSIS")
-        print("=" * 80)
-        print()
-        
-        if self.merged_data is None:
-            print("  ⚠ Error: Data not cleaned. Run clean_and_standardize() first.")
-            return None
-        
-        df = self.merged_data.copy()
-        
-        # Identify metric and timestamp columns
-        metric_col = 'METRIC_NAME' if 'METRIC_NAME' in df.columns else ('METRIC' if 'METRIC' in df.columns else ('metric_name' if 'metric_name' in df.columns else None))
-        time_col = 'timestamp' if 'timestamp' in df.columns else None
-        lift_col = 'LIFT' if 'LIFT' in df.columns else ('lift' if 'lift' in df.columns else None)
-        
-        if not all([metric_col, time_col, lift_col]):
-            print(f"  ⚠ Error: Missing required columns. Metric: {metric_col}, Time: {time_col}, Lift: {lift_col}")
-            return None
-        
-        print(f"Analyzing time series for {df[metric_col].nunique()} metrics...")
-        print()
-        
-        # Group by metric and time
-        ts_data = df.groupby([time_col, metric_col]).agg({
-            lift_col: ['mean', 'std', 'count', 'min', 'max'],
-        }).reset_index()
-        
-        ts_data.columns = [time_col, metric_col, 'lift_mean', 'lift_std', 'lift_count', 'lift_min', 'lift_max']
-        
-        # Calculate month-over-month changes
-        print("Computing month-over-month trends...")
-        ts_data = ts_data.sort_values([metric_col, time_col])
-        ts_data['mom_change'] = ts_data.groupby(metric_col)['lift_mean'].diff()
-        ts_data['mom_pct_change'] = ts_data.groupby(metric_col)['lift_mean'].pct_change() * 100
-        
-        # Calculate stability metrics
-        print("Computing stability metrics...")
-        stability = ts_data.groupby(metric_col).agg({
-            'lift_mean': ['mean', 'std'],
-            'lift_std': 'mean',
-            'mom_change': ['std', lambda x: x.abs().mean()],
-            'lift_count': 'sum'
-        }).reset_index()
-        
-        stability.columns = [
-            metric_col, 'avg_lift', 'lift_std_across_time', 'avg_lift_std',
-            'mom_change_std', 'avg_abs_mom_change', 'total_observations'
-        ]
-        
-        # Coefficient of Variation (lower = more stable)
-        stability['cv'] = stability['lift_std_across_time'] / stability['avg_lift'].abs().replace(0, np.nan)
-        
-        # Z-score normalization for stability
-        stability['stability_score'] = 1 / (1 + stability['cv'].fillna(999))
-        
-        # Rank by stability
-        stability = stability.sort_values('stability_score', ascending=False)
-        
-        print(f"  ✓ Analyzed {len(stability)} metrics")
-        print()
-        
-        # Classify as signal vs noise
-        stability['signal_type'] = pd.cut(
-            stability['stability_score'],
-            bins=[0, 0.3, 0.7, 1.0],
-            labels=['Noise', 'Uncertain', 'Signal']
-        )
-        
-        signal_count = (stability['signal_type'] == 'Signal').sum()
-        noise_count = (stability['signal_type'] == 'Noise').sum()
-        
-        print("Signal vs Noise Classification:")
-        print("-" * 80)
-        print(f"  Signal (stable): {signal_count} metrics")
-        print(f"  Uncertain: {(stability['signal_type'] == 'Uncertain').sum()} metrics")
-        print(f"  Noise (unstable): {noise_count} metrics")
-        print()
-        
-        # Save results
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        stability_file = self.output_dir / f"metric_stability_{timestamp}.csv"
-        stability.to_csv(stability_file, index=False)
-        print(f"  ✓ Saved stability analysis: {stability_file.name}")
-        
-        ts_file = self.output_dir / f"time_series_data_{timestamp}.csv"
-        ts_data.to_csv(ts_file, index=False)
-        print(f"  ✓ Saved time series data: {ts_file.name}")
-        print()
-        
-        return stability, ts_data
-    
-    def filter_level_analysis(self):
-        """Analyze by filters (channels, demos, etc.)."""
-        print("=" * 80)
-        print("TASK 5: FILTER-LEVEL INSIGHTS")
+        print("TASK 5A: AVERAGE LIFT BY MONTH AND GROUP")
         print("=" * 80)
         print()
         
         if self.merged_data is None:
-            print("  ⚠ Error: Data not cleaned. Run clean_and_standardize() first.")
-            return None
+            raise ValueError("Please run merge_data() first")
         
         df = self.merged_data.copy()
         
-        # Identify filter columns
-        filter_cols = []
-        for col in ['channel', 'CHANNEL', 'filter_name', 'FILTER_NAME', 'GROUP_NAME', 'demographic', 'DEMOGRAPHIC']:
+        # Find GROUP_NAME column (may have suffixes from merge)
+        group_col = None
+        for col in ['GROUP_NAME', 'GROUP_NAME_filter_ids', 'GROUP_NAME_filters']:
             if col in df.columns:
-                filter_cols.append(col)
+                group_col = col
+                break
         
-        if not filter_cols:
-            print("  ⚠ No filter columns found")
-            return None
+        if group_col is None:
+            print("  ⚠ Warning: GROUP_NAME column not found. Available columns:", list(df.columns)[:20])
+            return pd.DataFrame()
         
-        metric_col = 'METRIC_NAME' if 'METRIC_NAME' in df.columns else ('METRIC' if 'METRIC' in df.columns else 'metric_name')
-        lift_col = 'LIFT' if 'LIFT' in df.columns else ('lift' if 'lift' in df.columns else None)
-        time_col = 'timestamp' if 'timestamp' in df.columns else None
+        # Filter out rows with missing data
+        analysis_df = df[df['survey_month'].notna() & df['LIFT_PERCENTAGE'].notna()].copy()
         
-        if metric_col not in df.columns:
-            print(f"  ⚠ Error: Metric column '{metric_col}' not found. Available columns: {list(df.columns)}")
-            return None
-        if lift_col is None or lift_col not in df.columns:
-            print(f"  ⚠ Error: Lift column not found. Available columns: {list(df.columns)}")
-            return None
+        if len(analysis_df) == 0:
+            print("  ⚠ Warning: No data with both survey_month and LIFT_PERCENTAGE")
+            return pd.DataFrame()
         
-        print(f"Analyzing by filters: {', '.join(filter_cols)}")
+        # Group by survey_month and GROUP_NAME
+        result = analysis_df.groupby(['survey_month', group_col]).agg({
+            'LIFT_PERCENTAGE': ['mean', 'std', 'count', 'min', 'max']
+        }).reset_index()
+        
+        result.columns = ['survey_month', 'GROUP_NAME', 'avg_lift', 'std_lift', 'count', 'min_lift', 'max_lift']
+        result = result.sort_values(['survey_month', 'avg_lift'], ascending=[True, False])
+        
+        print(f"  ✓ Analyzed {len(result)} combinations")
+        print(f"  Date range: {result['survey_month'].min()} to {result['survey_month'].max()}")
+        print(f"  Unique groups: {result['GROUP_NAME'].nunique()}")
         print()
         
-        results = {}
+        # Save to CSV
+        output_file = self.output_dir / "lift_by_month_and_group.csv"
+        result.to_csv(output_file, index=False)
+        print(f"  ✓ Saved: {output_file.name}")
+        print()
         
-        # Analyze by each filter dimension
-        for filter_col in filter_cols:
-            print(f"Analyzing by {filter_col}...")
-            
-            # Group by filter and metric
-            filter_analysis = df.groupby([filter_col, metric_col]).agg({
-                lift_col: ['mean', 'std', 'count'],
-            }).reset_index()
-            
-            filter_analysis.columns = [filter_col, metric_col, 'avg_lift', 'lift_std', 'count']
-            
-            # Calculate stability by filter
-            filter_stability = filter_analysis.groupby(filter_col).agg({
-                'avg_lift': ['mean', 'std'],
-                'lift_std': 'mean',
-                'count': 'sum'
-            }).reset_index()
-            
-            filter_stability.columns = [filter_col, 'avg_lift', 'lift_std_across_metrics', 'avg_metric_std', 'total_observations']
-            filter_stability['cv'] = filter_stability['lift_std_across_metrics'] / filter_stability['avg_lift'].abs().replace(0, np.nan)
-            filter_stability['stability_score'] = 1 / (1 + filter_stability['cv'].fillna(999))
-            filter_stability = filter_stability.sort_values('stability_score', ascending=False)
-            
-            results[filter_col] = {
-                'by_filter': filter_analysis,
-                'stability': filter_stability
-            }
-            
-            print(f"  ✓ Analyzed {filter_analysis[filter_col].nunique()} unique {filter_col} values")
-            
-            # Save
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filter_file = self.output_dir / f"filter_analysis_{filter_col}_{timestamp}.csv"
-            filter_analysis.to_csv(filter_file, index=False)
-            stability_file = self.output_dir / f"filter_stability_{filter_col}_{timestamp}.csv"
-            filter_stability.to_csv(stability_file, index=False)
-            print(f"  ✓ Saved results for {filter_col}")
-            print()
-        
-        # Time series by filter (if timestamp available)
-        if time_col and filter_cols:
-            print("Analyzing time series trends by filter...")
-            for filter_col in filter_cols[:2]:  # Limit to first 2 filters to avoid too many files
-                ts_by_filter = df.groupby([time_col, filter_col, metric_col]).agg({
-                    lift_col: 'mean'
-                }).reset_index()
-                
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                ts_file = self.output_dir / f"time_series_by_{filter_col}_{timestamp}.csv"
-                ts_by_filter.to_csv(ts_file, index=False)
-                print(f"  ✓ Saved time series by {filter_col}")
-            print()
-        
-        return results
+        return result
     
-    def generate_visualizations(self, stability: pd.DataFrame = None, ts_data: pd.DataFrame = None):
-        """Generate all visualizations."""
+    def identify_top_bottom_filters(self) -> Dict[str, pd.DataFrame]:
+        """Task 5b: Identify top 5 and bottom 5 filters by average lift."""
         print("=" * 80)
-        print("GENERATING VISUALIZATIONS")
+        print("TASK 5B: TOP AND BOTTOM FILTERS BY LIFT")
         print("=" * 80)
         print()
         
         if self.merged_data is None:
-            print("  ⚠ Error: Data not available")
+            raise ValueError("Please run merge_data() first")
+        
+        df = self.merged_data.copy()
+        
+        # Find filter name column
+        filter_name_col = None
+        for col in ['FILTER_NAME', 'NAME', 'NAME_filter_ids', 'NAME_filters']:
+            if col in df.columns:
+                filter_name_col = col
+                break
+        
+        if filter_name_col is None:
+            print("  ⚠ Warning: Could not find filter name column")
+            return {}
+        
+        # Calculate average lift by filter
+        filter_stats = df.groupby(filter_name_col).agg({
+            'LIFT_PERCENTAGE': ['mean', 'std', 'count']
+        }).reset_index()
+        filter_stats.columns = ['FILTER_NAME', 'avg_lift', 'std_lift', 'count']
+        filter_stats = filter_stats.sort_values('avg_lift', ascending=False)
+        
+        # Get top 5 and bottom 5
+        top_5 = filter_stats.head(5).copy()
+        bottom_5 = filter_stats.tail(5).copy()
+        
+        print("Top 5 Filters by Average Lift:")
+        print("-" * 80)
+        for i, (_, row) in enumerate(top_5.iterrows(), 1):
+            print(f"  {i}. {row['FILTER_NAME']}: {row['avg_lift']:.2f}% (std={row['std_lift']:.2f}, n={row['count']})")
+        print()
+        
+        print("Bottom 5 Filters by Average Lift:")
+        print("-" * 80)
+        for i, (_, row) in enumerate(bottom_5.iterrows(), 1):
+            print(f"  {i}. {row['FILTER_NAME']}: {row['avg_lift']:.2f}% (std={row['std_lift']:.2f}, n={row['count']})")
+        print()
+        
+        # Save to CSV
+        top_file = self.output_dir / "top_5_filters.csv"
+        bottom_file = self.output_dir / "bottom_5_filters.csv"
+        top_5.to_csv(top_file, index=False)
+        bottom_5.to_csv(bottom_file, index=False)
+        print(f"  ✓ Saved: {top_file.name}, {bottom_file.name}")
+        print()
+        
+        return {'top_5': top_5, 'bottom_5': bottom_5, 'all_filters': filter_stats}
+    
+    def identify_unstable_patterns(self, std_threshold: float = None) -> pd.DataFrame:
+        """Task 5c: Identify filters with high standard deviation (unstable patterns)."""
+        print("=" * 80)
+        print("TASK 5C: IDENTIFYING UNSTABLE PATTERNS")
+        print("=" * 80)
+        print()
+        
+        if self.merged_data is None:
+            raise ValueError("Please run merge_data() first")
+        
+        df = self.merged_data.copy()
+        
+        # Find filter name column
+        filter_name_col = None
+        for col in ['FILTER_NAME', 'NAME', 'NAME_filter_ids', 'NAME_filters']:
+            if col in df.columns:
+                filter_name_col = col
+                break
+        
+        if filter_name_col is None:
+            print("  ⚠ Warning: Could not find filter name column")
+            return pd.DataFrame()
+        
+        # Calculate statistics by filter
+        filter_stats = df.groupby(filter_name_col).agg({
+            'LIFT_PERCENTAGE': ['mean', 'std', 'count', 'min', 'max']
+        }).reset_index()
+        filter_stats.columns = ['FILTER_NAME', 'avg_lift', 'std_lift', 'count', 'min_lift', 'max_lift']
+        
+        # Calculate coefficient of variation (CV) as stability metric
+        filter_stats['cv'] = filter_stats['std_lift'] / filter_stats['avg_lift'].abs().replace(0, np.nan)
+        filter_stats['range'] = filter_stats['max_lift'] - filter_stats['min_lift']
+        
+        # If no threshold provided, use 75th percentile of CV
+        if std_threshold is None:
+            std_threshold = filter_stats['cv'].quantile(0.75)
+        
+        # Identify unstable patterns (high CV or high range)
+        unstable = filter_stats[
+            (filter_stats['cv'] > std_threshold) | 
+            (filter_stats['range'] > filter_stats['range'].quantile(0.75))
+        ].sort_values('cv', ascending=False)
+        
+        print(f"Unstable Patterns (CV > {std_threshold:.2f} or high range):")
+        print("-" * 80)
+        print(f"  Found {len(unstable)} unstable filters out of {len(filter_stats)} total")
+        print()
+        
+        if len(unstable) > 0:
+            print("Top 10 Most Unstable Filters:")
+            for i, (_, row) in enumerate(unstable.head(10).iterrows(), 1):
+                print(f"  {i}. {row['FILTER_NAME']}: CV={row['cv']:.2f}, Range={row['range']:.2f}%, Avg={row['avg_lift']:.2f}%")
+            print()
+        
+        # Save to CSV
+        output_file = self.output_dir / "unstable_patterns.csv"
+        unstable.to_csv(output_file, index=False)
+        print(f"  ✓ Saved: {output_file.name}")
+        print()
+        
+        return unstable
+    
+    def create_visualizations(self):
+        """Task 5d & 6: Create pivot tables and charts for lift analysis. Save plots to disk."""
+        print("=" * 80)
+        print("TASK 5D & 6: CREATING VISUALIZATIONS")
+        print("=" * 80)
+        print()
+        
+        if self.merged_data is None:
+            raise ValueError("Please run merge_data() first")
+        
+        df = self.merged_data.copy()
+        
+        # Find GROUP_NAME column
+        group_col = None
+        for col in ['GROUP_NAME', 'GROUP_NAME_filter_ids', 'GROUP_NAME_filters']:
+            if col in df.columns:
+                group_col = col
+                break
+        
+        if group_col is None:
+            print("  ⚠ Warning: GROUP_NAME column not found")
             return
         
-        df = self.merged_data.copy()
-        metric_col = 'METRIC_NAME' if 'METRIC_NAME' in df.columns else ('METRIC' if 'METRIC' in df.columns else 'metric_name')
-        lift_col = 'LIFT' if 'LIFT' in df.columns else ('lift' if 'lift' in df.columns else None)
-        time_col = 'timestamp' if 'timestamp' in df.columns else None
+        # Filter valid data
+        analysis_df = df[df['survey_month'].notna() & df['LIFT_PERCENTAGE'].notna()].copy()
         
-        # 1. Top metrics by stability
-        if stability is not None and len(stability) > 0:
-            print("1. Top Stable Metrics (Signal)...")
-            # Find the metric column in stability dataframe
-            stability_metric_col = 'METRIC_NAME' if 'METRIC_NAME' in stability.columns else ('METRIC' if 'METRIC' in stability.columns else 'metric_name')
-            top_signal = stability[stability['signal_type'] == 'Signal'].head(20)
-            
-            fig, ax = plt.subplots(figsize=(12, 8))
-            bars = ax.barh(range(len(top_signal)), top_signal['stability_score'].values)
-            ax.set_yticks(range(len(top_signal)))
-            ax.set_yticklabels(top_signal[stability_metric_col].values, fontsize=9)
-            ax.set_xlabel('Stability Score', fontsize=12)
-            ax.set_title('Top 20 Stable Metrics (Signal)', fontsize=14, fontweight='bold')
-            ax.grid(True, alpha=0.3, axis='x')
-            plt.tight_layout()
-            plt.savefig(self.output_dir / 'top_stable_metrics.png', dpi=300, bbox_inches='tight')
-            plt.close()
-            print("  ✓ Saved: top_stable_metrics.png")
+        if len(analysis_df) == 0:
+            print("  ⚠ Warning: No data with both survey_month and LIFT_PERCENTAGE")
+            return
         
-        # 2. Time series plots for top metrics
-        if ts_data is not None and time_col:
-            print("2. Time Series Plots...")
-            # Find the metric column in ts_data and stability
-            ts_metric_col = 'METRIC_NAME' if 'METRIC_NAME' in ts_data.columns else ('METRIC' if 'METRIC' in ts_data.columns else 'metric_name')
-            if stability is not None:
-                stability_metric_col = 'METRIC_NAME' if 'METRIC_NAME' in stability.columns else ('METRIC' if 'METRIC' in stability.columns else 'metric_name')
-                top_metrics = stability.head(10)[stability_metric_col].values
-            else:
-                top_metrics = df[metric_col].value_counts().head(10).index
+        # 5d-a: LIFT_PERCENTAGE over time by top channels
+        print("5d-a. Creating time series plot by top channels...")
+        if group_col:
+            # Identify channels (assuming GROUP_NAME contains channel info)
+            # Get top channels by average lift
+            channel_avg = analysis_df.groupby(group_col)['LIFT_PERCENTAGE'].mean().sort_values(ascending=False)
+            top_channels = channel_avg.head(10).index.tolist()
             
-            fig, axes = plt.subplots(5, 2, figsize=(16, 20))
-            axes = axes.flatten()
-            
-            for i, metric in enumerate(top_metrics[:10]):
-                metric_ts = ts_data[ts_data[ts_metric_col] == metric].sort_values(time_col)
-                if len(metric_ts) > 0:
-                    ax = axes[i]
-                    ax.plot(metric_ts[time_col], metric_ts['lift_mean'], marker='o', linewidth=2)
-                    ax.fill_between(
-                        metric_ts[time_col],
-                        metric_ts['lift_mean'] - metric_ts['lift_std'].fillna(0),
-                        metric_ts['lift_mean'] + metric_ts['lift_std'].fillna(0),
-                        alpha=0.2
-                    )
-                    ax.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
-                    ax.set_title(metric[:60] + '...' if len(metric) > 60 else metric, fontsize=10)
-                    ax.set_ylabel('Lift (%)', fontsize=9)
-                    ax.grid(True, alpha=0.3)
-                    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
-            
-            plt.tight_layout()
-            plt.savefig(self.output_dir / 'time_series_top_metrics.png', dpi=300, bbox_inches='tight')
-            plt.close()
-            print("  ✓ Saved: time_series_top_metrics.png")
-        
-        # 3. Signal vs Noise distribution
-        if stability is not None:
-            print("3. Signal vs Noise Distribution...")
-            fig, ax = plt.subplots(figsize=(10, 6))
-            signal_counts = stability['signal_type'].value_counts()
-            colors = {'Signal': 'green', 'Uncertain': 'yellow', 'Noise': 'red'}
-            bars = ax.bar(signal_counts.index, signal_counts.values, 
-                         color=[colors.get(x, 'gray') for x in signal_counts.index])
-            ax.set_ylabel('Number of Metrics', fontsize=12)
-            ax.set_title('Signal vs Noise Classification', fontsize=14, fontweight='bold')
-            ax.grid(True, alpha=0.3, axis='y')
-            for bar in bars:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height,
-                       f'{int(height)}',
-                       ha='center', va='bottom')
-            plt.tight_layout()
-            plt.savefig(self.output_dir / 'signal_vs_noise_distribution.png', dpi=300, bbox_inches='tight')
-            plt.close()
-            print("  ✓ Saved: signal_vs_noise_distribution.png")
-        
-        # 4. Heatmap by channel (if available)
-        if 'channel' in df.columns or 'CHANNEL' in df.columns:
-            print("4. Channel Performance Heatmap...")
-            channel_col = 'channel' if 'channel' in df.columns else 'CHANNEL'
-            channel_metric = df.groupby([channel_col, metric_col]).agg({
-                lift_col: 'mean'
-            }).reset_index()
-            
-            pivot = channel_metric.pivot_table(
-                index=metric_col,
-                columns=channel_col,
-                values=lift_col,
+            pivot_time = analysis_df[analysis_df[group_col].isin(top_channels)].pivot_table(
+                index='survey_month',
+                columns=group_col,
+                values='LIFT_PERCENTAGE',
                 aggfunc='mean'
             )
             
-            if len(pivot) > 0 and len(pivot.columns) > 0:
-                # Sort by average lift
-                pivot['avg'] = pivot.mean(axis=1)
-                pivot = pivot.sort_values('avg', ascending=False).drop('avg', axis=1)
-                
-                fig, ax = plt.subplots(figsize=(max(8, len(pivot.columns) * 1.5), max(10, len(pivot) * 0.3)))
-                sns.heatmap(pivot, annot=True, fmt='.2f', cmap='RdYlGn', center=0, ax=ax,
-                           cbar_kws={'label': 'Lift (%)'}, linewidths=0.5)
-                ax.set_title('Lift Heatmap: Metrics by Channel', fontsize=16, fontweight='bold')
+            if not pivot_time.empty:
+                fig, ax = plt.subplots(figsize=(14, 8))
+                for col in pivot_time.columns:
+                    ax.plot(pivot_time.index, pivot_time[col], marker='o', label=col, linewidth=2, markersize=6)
+                ax.axhline(y=0, color='black', linestyle='--', linewidth=0.5, alpha=0.5)
+                ax.set_xlabel('Survey Month', fontsize=12)
+                ax.set_ylabel('Average Lift (%)', fontsize=12)
+                ax.set_title('Lift Over Time by Top Channels', fontsize=14, fontweight='bold')
+                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
+                ax.grid(True, alpha=0.3)
+                plt.xticks(rotation=45, ha='right')
                 plt.tight_layout()
-                plt.savefig(self.output_dir / 'channel_heatmap.png', dpi=300, bbox_inches='tight')
+                plt.savefig(self.output_dir / 'lift_over_time_by_channel.png', dpi=300, bbox_inches='tight')
                 plt.close()
-                print("  ✓ Saved: channel_heatmap.png")
+                print("  ✓ Saved: lift_over_time_by_channel.png")
+        
+        # 5d-b: LIFT_PERCENTAGE boxplots by demographic
+        print("5d-b. Creating boxplots by demographic...")
+        # Use GROUP_NAME as proxy for demographic, or find actual demographic column
+        demo_col = group_col  # Use GROUP_NAME as proxy
+        
+        if demo_col and analysis_df[demo_col].nunique() <= 20:  # Only if reasonable number of categories
+            # Get top demographics by count
+            demo_counts = analysis_df[demo_col].value_counts().head(10)
+            demo_groups = demo_counts.index.tolist()
+            demo_data = [analysis_df[analysis_df[demo_col] == group]['LIFT_PERCENTAGE'].dropna().values 
+                        for group in demo_groups if len(analysis_df[analysis_df[demo_col] == group]) > 0]
+            demo_labels = [group for group in demo_groups if len(analysis_df[analysis_df[demo_col] == group]) > 0]
+            
+            if len(demo_data) > 0:
+                fig, ax = plt.subplots(figsize=(12, 8))
+                bp = ax.boxplot(demo_data, labels=demo_labels, patch_artist=True)
+                # Color the boxes
+                for patch in bp['boxes']:
+                    patch.set_facecolor('lightblue')
+                    patch.set_alpha(0.7)
+                ax.axhline(y=0, color='black', linestyle='--', linewidth=0.5, alpha=0.5)
+                ax.set_xlabel('Demographic/Group', fontsize=12)
+                ax.set_ylabel('Lift (%)', fontsize=12)
+                ax.set_title('Lift Distribution by Demographic/Group', fontsize=14, fontweight='bold')
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+                plt.savefig(self.output_dir / 'lift_boxplot_by_demographic.png', dpi=300, bbox_inches='tight')
+                plt.close()
+                print("  ✓ Saved: lift_boxplot_by_demographic.png")
+        
+        # Additional: Heatmap of lift by month and group
+        print("Creating heatmap: Lift by month and group...")
+        if group_col:
+            heatmap_data = analysis_df.pivot_table(
+                index='survey_month',
+                columns=group_col,
+                values='LIFT_PERCENTAGE',
+                aggfunc='mean'
+            )
+            
+            if not heatmap_data.empty and len(heatmap_data.columns) > 0:
+                # Limit to top 15 groups for readability
+                if len(heatmap_data.columns) > 15:
+                    top_groups = analysis_df.groupby(group_col)['LIFT_PERCENTAGE'].mean().nlargest(15).index
+                    heatmap_data = heatmap_data[top_groups]
+                
+                fig, ax = plt.subplots(figsize=(max(10, len(heatmap_data.columns) * 0.8), 
+                                                   max(6, len(heatmap_data) * 0.5)))
+                sns.heatmap(heatmap_data, annot=True, fmt='.1f', cmap='RdYlGn', center=0, 
+                           ax=ax, cbar_kws={'label': 'Lift (%)'}, linewidths=0.5)
+                ax.set_title('Lift Heatmap: Month × Group', fontsize=14, fontweight='bold')
+                ax.set_xlabel('Group', fontsize=12)
+                ax.set_ylabel('Survey Month', fontsize=12)
+                plt.tight_layout()
+                plt.savefig(self.output_dir / 'lift_heatmap_month_group.png', dpi=300, bbox_inches='tight')
+                plt.close()
+                print("  ✓ Saved: lift_heatmap_month_group.png")
         
         print()
     
-    def export_summary_report(self, stability: pd.DataFrame = None, filter_results: Dict = None):
-        """Export comprehensive summary report."""
+    def generate_summary_report(self, lift_by_month_group: pd.DataFrame = None,
+                                top_bottom: Dict = None,
+                                unstable: pd.DataFrame = None) -> str:
+        """Task 7: Generate comprehensive summary report to kantar_analysis_summary.txt."""
         print("=" * 80)
-        print("TASK 6: EXPORTING SUMMARY REPORT")
+        print("TASK 7: GENERATING SUMMARY REPORT")
         print("=" * 80)
         print()
         
-        report = []
-        report.append("=" * 80)
-        report.append("KANTAR BLS COMPREHENSIVE ANALYSIS REPORT")
-        report.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report.append("=" * 80)
-        report.append("")
+        report_lines = []
+        report_lines.append("=" * 80)
+        report_lines.append("KANTAR BRAND LIFT ANALYSIS SUMMARY REPORT")
+        report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        report_lines.append("=" * 80)
+        report_lines.append("")
         
         # Data Summary
         if self.merged_data is not None:
             df = self.merged_data
-            report.append("DATA SUMMARY")
-            report.append("-" * 80)
-            report.append(f"Total Observations: {len(df):,}")
-            report.append(f"Unique Metrics: {df['METRIC_NAME'].nunique() if 'METRIC_NAME' in df.columns else 'N/A'}")
-            if 'timestamp' in df.columns:
-                report.append(f"Time Range: {df['timestamp'].min()} to {df['timestamp'].max()}")
-            report.append("")
+            report_lines.append("DATA SUMMARY")
+            report_lines.append("-" * 80)
+            report_lines.append(f"Total Observations: {len(df):,}")
+            report_lines.append(f"Unique Survey Months: {df['survey_month'].nunique() if 'survey_month' in df.columns else 'N/A'}")
+            if 'survey_month' in df.columns and df['survey_month'].notna().any():
+                report_lines.append(f"Date Range: {df['survey_month'].min()} to {df['survey_month'].max()}")
+            report_lines.append("")
         
-        # Signal vs Noise
-        if stability is not None:
-            report.append("SIGNAL VS NOISE ANALYSIS")
-            report.append("-" * 80)
-            signal_metrics = stability[stability['signal_type'] == 'Signal']
-            noise_metrics = stability[stability['signal_type'] == 'Noise']
+        # Key Trends
+        report_lines.append("KEY TRENDS")
+        report_lines.append("-" * 80)
+        if lift_by_month_group is not None and len(lift_by_month_group) > 0:
+            report_lines.append("Average Lift by Month and Group:")
+            report_lines.append("")
+            # Group by month to show trends
+            monthly_summary = lift_by_month_group.groupby('survey_month')['avg_lift'].agg(['mean', 'count']).reset_index()
+            for _, row in monthly_summary.iterrows():
+                report_lines.append(f"  {row['survey_month']}: Average Lift = {row['mean']:.2f}% (n={row['count']} groups)")
+            report_lines.append("")
+            report_lines.append("Top 10 Month-Group Combinations by Lift:")
+            for i, (_, row) in enumerate(lift_by_month_group.head(10).iterrows(), 1):
+                report_lines.append(f"  {i}. {row['survey_month']} - {row['GROUP_NAME']}: {row['avg_lift']:.2f}% (n={row['count']})")
+            report_lines.append("")
+        
+        # Top and Bottom Filters
+        if top_bottom is not None:
+            report_lines.append("TOP PERFORMING FILTERS")
+            report_lines.append("-" * 80)
+            if 'top_5' in top_bottom:
+                for i, (_, row) in enumerate(top_bottom['top_5'].iterrows(), 1):
+                    report_lines.append(f"  {i}. {row['FILTER_NAME']}: {row['avg_lift']:.2f}% (std={row['std_lift']:.2f}, n={row['count']})")
+            report_lines.append("")
             
-            report.append(f"Signal (Stable Metrics): {len(signal_metrics)}")
-            report.append(f"Noise (Unstable Metrics): {len(noise_metrics)}")
-            report.append("")
-            
-            if len(signal_metrics) > 0:
-                report.append("Top 10 Stable Metrics (Signal):")
-                for i, (_, row) in enumerate(signal_metrics.head(10).iterrows(), 1):
-                    metric = row['METRIC_NAME' if 'METRIC_NAME' in stability.columns else ('METRIC' if 'METRIC' in stability.columns else 'metric_name')]
-                    report.append(f"  {i}. {metric}: stability={row['stability_score']:.3f}, CV={row['cv']:.2f}")
-                report.append("")
+            report_lines.append("BOTTOM PERFORMING FILTERS")
+            report_lines.append("-" * 80)
+            if 'bottom_5' in top_bottom:
+                for i, (_, row) in enumerate(top_bottom['bottom_5'].iterrows(), 1):
+                    report_lines.append(f"  {i}. {row['FILTER_NAME']}: {row['avg_lift']:.2f}% (std={row['std_lift']:.2f}, n={row['count']})")
+            report_lines.append("")
         
-        # Filter Analysis
-        if filter_results:
-            report.append("FILTER-LEVEL INSIGHTS")
-            report.append("-" * 80)
-            for filter_name, results in filter_results.items():
-                report.append(f"\n{filter_name.upper()}:")
-                stability_df = results['stability']
-                report.append(f"  Unique values: {len(stability_df)}")
-                report.append(f"  Top 5 by stability:")
-                for i, (_, row) in enumerate(stability_df.head(5).iterrows(), 1):
-                    filter_val = row[filter_name]
-                    report.append(f"    {i}. {filter_val}: avg_lift={row['avg_lift']:.2f}%, stability={row['stability_score']:.3f}")
-            report.append("")
+        # Stable vs Unstable Patterns
+        report_lines.append("STABLE VS UNSTABLE PATTERNS")
+        report_lines.append("-" * 80)
+        if unstable is not None and len(unstable) > 0:
+            report_lines.append(f"Unstable Filters Identified: {len(unstable)}")
+            report_lines.append("Most Unstable Filters (high standard deviation):")
+            for i, (_, row) in enumerate(unstable.head(5).iterrows(), 1):
+                report_lines.append(f"  {i}. {row['FILTER_NAME']}: CV={row['cv']:.2f}, Range={row['range']:.2f}%, Avg={row['avg_lift']:.2f}%")
+            report_lines.append("")
+            report_lines.append("Note: Unstable patterns may indicate:")
+            report_lines.append("  - High variability in lift across time or segments")
+            report_lines.append("  - Need for more data points to establish reliable patterns")
+            report_lines.append("  - Potential measurement issues or small sample sizes")
+        else:
+            report_lines.append("No highly unstable patterns identified.")
+        report_lines.append("")
         
-        report.append("=" * 80)
-        report.append("END OF REPORT")
-        report.append("=" * 80)
+        # Notable Anomalies
+        report_lines.append("NOTABLE ANOMALIES")
+        report_lines.append("-" * 80)
+        if self.merged_data is not None:
+            df = self.merged_data
+            if 'LIFT_PERCENTAGE' in df.columns:
+                valid_lift = df['LIFT_PERCENTAGE'].dropna()
+                if len(valid_lift) > 0:
+                    high_lift = df[df['LIFT_PERCENTAGE'] > valid_lift.quantile(0.95)]
+                    low_lift = df[df['LIFT_PERCENTAGE'] < valid_lift.quantile(0.05)]
+                    report_lines.append(f"Extreme High Lift (>95th percentile): {len(high_lift)} observations")
+                    report_lines.append(f"Extreme Low Lift (<5th percentile): {len(low_lift)} observations")
+                    if len(high_lift) > 0:
+                        report_lines.append(f"  Max lift: {valid_lift.max():.2f}%")
+                    if len(low_lift) > 0:
+                        report_lines.append(f"  Min lift: {valid_lift.min():.2f}%")
+        report_lines.append("")
         
-        report_text = "\n".join(report)
+        # Narrative Summary
+        report_lines.append("NARRATIVE SUMMARY")
+        report_lines.append("-" * 80)
+        if lift_by_month_group is not None and len(lift_by_month_group) > 0:
+            overall_avg = lift_by_month_group['avg_lift'].mean()
+            report_lines.append(f"Overall average lift across all month-group combinations: {overall_avg:.2f}%")
+            report_lines.append("")
+            if top_bottom is not None and 'top_5' in top_bottom:
+                top_avg = top_bottom['top_5']['avg_lift'].mean()
+                report_lines.append(f"Top performing filters show an average lift of {top_avg:.2f}%, indicating strong")
+                report_lines.append("brand impact in these segments.")
+        report_lines.append("")
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_file = self.output_dir / f"comprehensive_analysis_report_{timestamp}.txt"
+        report_lines.append("=" * 80)
+        report_lines.append("END OF REPORT")
+        report_lines.append("=" * 80)
+        
+        report_text = "\n".join(report_lines)
+        
+        # Save report
+        report_file = self.output_dir / "kantar_analysis_summary.txt"
         with open(report_file, 'w') as f:
             f.write(report_text)
         
@@ -719,8 +753,7 @@ class ComprehensiveBLSAnalyzer:
 def main():
     """Main execution function."""
     print("=" * 80)
-    print("KANTAR BLS COMPREHENSIVE ANALYSIS - FROM SCRATCH")
-    print("Using ALL Available Data Sources")
+    print("🟣 KANTAR BRAND LIFT ANALYSIS PIPELINE (DOORDASH)")
     print("=" * 80)
     print()
     
@@ -729,34 +762,39 @@ def main():
     # Task 1: Load all data
     analyzer.load_all_data()
     
-    # Task 2: Validate structure
-    is_valid = analyzer.validate_structure()
+    # Task 2 & 3: Merge and extract survey_month
+    analyzer.merge_data()
     
-    if not is_valid:
-        print("  ⚠ Warning: Dataset structure validation failed, but continuing...")
-        print()
+    # Task 5: Perform analysis
+    lift_by_month_group = analyzer.analyze_lift_by_month_and_group()
+    top_bottom = analyzer.identify_top_bottom_filters()
+    unstable = analyzer.identify_unstable_patterns()
     
-    # Task 3: Clean and standardize
-    analyzer.clean_and_standardize()
+    # Task 5d & 6: Create visualizations
+    analyzer.create_visualizations()
     
-    # Task 4: Time series analysis
-    stability, ts_data = analyzer.time_series_analysis()
-    
-    # Task 5: Filter-level analysis
-    filter_results = analyzer.filter_level_analysis()
-    
-    # Generate visualizations
-    analyzer.generate_visualizations(stability=stability, ts_data=ts_data)
-    
-    # Task 6: Export summary report
-    analyzer.export_summary_report(stability=stability, filter_results=filter_results)
+    # Task 7: Generate summary report
+    analyzer.generate_summary_report(
+        lift_by_month_group=lift_by_month_group,
+        top_bottom=top_bottom,
+        unstable=unstable
+    )
     
     print("=" * 80)
     print("ANALYSIS COMPLETE!")
     print("=" * 80)
     print(f"\nAll outputs saved to: {analyzer.output_dir}")
+    print("\nGenerated files:")
+    print("  - merged_kantar_data.csv")
+    print("  - lift_by_month_and_group.csv")
+    print("  - top_5_filters.csv")
+    print("  - bottom_5_filters.csv")
+    print("  - unstable_patterns.csv")
+    print("  - lift_over_time_by_channel.png")
+    print("  - lift_boxplot_by_demographic.png")
+    print("  - lift_heatmap_month_group.png")
+    print("  - kantar_analysis_summary.txt")
 
 
 if __name__ == "__main__":
     main()
-
