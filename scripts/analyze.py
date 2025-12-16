@@ -359,9 +359,15 @@ class KantarBLSAnalyzer:
         2. Join to kantar_bls_filters to get filter_name and group_name
         
         For sample data (kantar_bls_sample_data.csv):
-        - Uses FILTER column to merge with NAME column in filter tables
+        - Uses FILTER column (contains filter names like "Male", "Gender", "45-54") 
+          to merge with NAME column in filter tables
+        - Note: LIMITING_FILTER column contains timestamp info only (e.g., "Timestamp: 3/1/25-3/31/25"),
+          NOT filter names, so it's NOT used for joining
+        - Join key: kantar_bls_sample_data.FILTER = kantar_bls_filter_ids.NAME
+        
         For old data (bls_metrics.csv):
-        - Uses FILTER_ID column to merge with FILTER_ID in filter tables
+        - Uses FILTER_ID column (numeric ID) to merge with FILTER_ID in filter tables
+        - Join key: bls_metrics.FILTER_ID = kantar_bls_filter_ids.FILTER_ID
         """
         # Start with metrics
         merged = self.metrics.copy()
@@ -372,6 +378,8 @@ class KantarBLSAnalyzer:
         if is_transformed_data:
             # Transformed data: merge using FILTER column (filter name) with NAME column
             print("  Detected transformed data format: using FILTER column for merging")
+            print("  Note: FILTER column contains filter names (e.g., 'Male', 'Gender', '45-54')")
+            print("  Note: LIMITING_FILTER contains timestamp info only (e.g., 'Timestamp: 3/1/25-3/31/25')")
             
             # Step 1: Merge with filter_ids using FILTER (name) -> NAME
             if 'FILTER' in merged.columns and not self.filter_ids.empty and 'NAME' in self.filter_ids.columns:
@@ -388,12 +396,29 @@ class KantarBLSAnalyzer:
                 # Remove duplicates to avoid many-to-many joins
                 filter_ids_for_join = filter_ids_for_join.drop_duplicates(subset=['FILTER'])
                 
+                # Log join statistics
+                sample_filters = set(merged['FILTER'].dropna().unique()[:50])
+                filter_names = set(filter_ids_for_join['FILTER'].dropna().unique()[:100])
+                matches = sample_filters.intersection(filter_names)
+                print(f"  Sample FILTER values in data: {len(sample_filters)} unique values")
+                print(f"  Sample NAME values in filter_ids: {len(filter_names)} unique values")
+                print(f"  Matching values found: {len(matches)}")
+                if len(matches) > 0:
+                    print(f"  Example matches: {list(matches)[:5]}")
+                else:
+                    print(f"  Warning: No exact matches found. Sample FILTER values: {list(sample_filters)[:5]}")
+                    print(f"  Sample NAME values: {list(filter_names)[:5]}")
+                
                 merged = merged.merge(
                     filter_ids_for_join,
                     on='FILTER',
                     how='left'
                 )
+                
+                # Count successful matches
+                match_count = merged['FILTER_ID'].notna().sum() if 'FILTER_ID' in merged.columns else 0
                 print(f"  Merged with filter_ids using FILTER->NAME: {len(merged):,} rows")
+                print(f"  Successful matches: {match_count:,} ({match_count/len(merged)*100:.1f}%)")
             
             # Step 2: Merge with filters table (if it has NAME column)
             if 'FILTER' in merged.columns and not self.filters.empty and 'NAME' in self.filters.columns:
@@ -2145,6 +2170,41 @@ def main():
     print("=" * 80)
     report_path = analyzer.generate_report(output_dir=str(output_dir))
     print(f"✓ Report saved to: {report_path}")
+    
+    # Generate time series and channel plots for top metrics
+    if time_series is not None and len(time_series) > 0:
+        print("\n" + "=" * 80)
+        print("GENERATING TIME SERIES AND CHANNEL PLOTS")
+        print("=" * 80)
+        
+        # Get unique metrics from time series data
+        metric_col = 'METRIC' if 'METRIC' in time_series.columns else 'METRIC_CLEAN'
+        if metric_col in time_series.columns:
+            unique_metrics = time_series[metric_col].unique()[:10]  # Top 10 metrics
+            
+            for metric in unique_metrics:
+                try:
+                    # Sanitize metric name for filename
+                    safe_metric = re.sub(r'[<>:"/\\|?*]', '_', str(metric))
+                    timestamp = datetime.now().strftime("%Y%m%d")
+                    
+                    # Plot time series
+                    ts_path = output_dir / f"timeseries_{safe_metric}_{timestamp}.png"
+                    analyzer.plot_time_series(
+                        metric_name=str(metric),
+                        save_path=ts_path
+                    )
+                    
+                    # Plot channel comparison
+                    channel_path = output_dir / f"channels_{safe_metric}_{timestamp}.png"
+                    analyzer.plot_channel_comparison(
+                        metric_name=str(metric),
+                        save_path=channel_path
+                    )
+                except Exception as e:
+                    print(f"  ⚠ Could not generate plots for {metric}: {str(e)}")
+            
+            print(f"✓ Generated plots for {len(unique_metrics)} metrics")
     
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE!")
