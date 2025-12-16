@@ -1,0 +1,34 @@
+================================================================================
+KANTAR BRAND LIFT SURVEY - ANALYSIS REPORT
+Generated: 2025-12-16 11:27:36
+================================================================================
+
+EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+Top 5 Metrics by Average Lift:
+  DashPass Worth: 20.48% (n=768)
+  DashPass Benefit Awareness: $0 Delivery + 1 Other Benefit (DP users): 17.94% (n=768)
+  DashPass Benefits Awareness: Max [HBO] subscription included at no extra cost: 16.36% (n=768)
+  DashPass Benefits Awareness: Ability to add someone in your household to your DashPass membership for free: 15.66% (n=768)
+  DashPass Benefits Awareness: Discounted rides with Lyft: 14.11% (n=768)
+
+Channel Performance:
+  Any: 9.21% avg lift, 0.0% consistent metrics
+  Digital: 2.52% avg lift, 0.0% consistent metrics
+  Social: 6.18% avg lift, 0.0% consistent metrics
+  Tv: 10.93% avg lift, 0.0% consistent metrics
+
+Signal vs Noise:
+  Metrics with consistent signal: 0
+  Metrics with high noise: 62
+
+Consistent Signals Across Filters:
+  (Metrics that perform reliably across multiple filters/channels)
+  DashPass Worth: Lift: 19.57%, Filters: 36, Consistency: 0.81
+  BA: Is an essential part of my life: Lift: 9.69%, Filters: 36, Consistency: 0.78
+  DashPass Benefits: Makes members' lives better: Lift: 10.86%, Filters: 36, Consistency: 0.78
+  BA MDS: Sets trends: Lift: 8.02%, Filters: 36, Consistency: 0.76
+  DashPass Benefits: Consistently adds valuable perks and bene: Lift: 6.88%, Filters: 36, Consistency: 0.76
+
+  Total metrics with consistent cross-filter signal: 59
+

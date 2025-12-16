@@ -169,8 +169,26 @@ class KantarBLSAnalyzer:
                 self.filters = pd.read_csv(filters_file, low_memory=False)
             else:
                 self.filters = pd.DataFrame()
+        elif (self.data_dir / "kantar_bls_sample_data.csv").exists():
+            # Use sample data file (has timestamps and is complete)
+            sample_file = self.data_dir / "kantar_bls_sample_data.csv"
+            print("  Found sample data file: kantar_bls_sample_data.csv")
+            print("  Using sample data file (has timestamps and is complete)...")
+            self.metrics = pd.read_csv(sample_file, low_memory=False)
+            # Still need to load filter_ids for additional metadata if needed
+            filter_ids_file = self.data_dir / "kantar_bls_filter_ids.csv"
+            if filter_ids_file.exists():
+                self.filter_ids = pd.read_csv(filter_ids_file, low_memory=False)
+            else:
+                self.filter_ids = pd.DataFrame()
+            # Filters may not be needed if already merged, but load for compatibility
+            filters_file = self.data_dir / "kantar_bls_filters.csv"
+            if filters_file.exists():
+                self.filters = pd.read_csv(filters_file, low_memory=False)
+            else:
+                self.filters = pd.DataFrame()
         else:
-            # Load individual files
+            # Load individual files (fallback to old bls_metrics.csv if transformed data not available)
             self.metrics = pd.read_csv(self.data_dir / "bls_metrics.csv", low_memory=False)
             # Load filters
             self.filters = pd.read_csv(self.data_dir / "kantar_bls_filters.csv", low_memory=False)
@@ -258,8 +276,26 @@ class KantarBLSAnalyzer:
         self.merged_data = self._extract_dimensions()
         
         print(f"✓ Merged dataset: {len(self.merged_data):,} rows")
-        print(f"✓ Unique filters: {self.merged_data['FILTER_ID'].nunique():,}")
-        print(f"✓ Unique metrics: {self.merged_data['METRIC_ID'].nunique():,}")
+        
+        # Handle FILTER_ID - create from FILTER column if needed (sample data format)
+        is_sample_data = 'FILTER' in self.merged_data.columns and 'FILTER_ID' not in self.merged_data.columns
+        if is_sample_data:
+            # Create FILTER_ID from FILTER column for compatibility
+            if 'FILTER_ID' not in self.merged_data.columns and 'FILTER' in self.merged_data.columns:
+                # Use FILTER as FILTER_ID (or could create hash)
+                self.merged_data['FILTER_ID'] = self.merged_data['FILTER']
+        
+        # Print unique counts (handle missing columns gracefully)
+        if 'FILTER_ID' in self.merged_data.columns:
+            print(f"✓ Unique filters: {self.merged_data['FILTER_ID'].nunique():,}")
+        elif 'FILTER' in self.merged_data.columns:
+            print(f"✓ Unique filters: {self.merged_data['FILTER'].nunique():,}")
+        
+        # Use METRIC column directly (sample data has METRIC column)
+        if 'METRIC' in self.merged_data.columns:
+            print(f"✓ Unique metrics: {self.merged_data['METRIC'].nunique():,}")
+        elif 'FOLDER_NAME' in self.merged_data.columns:
+            print(f"✓ Unique metrics: {self.merged_data['FOLDER_NAME'].nunique():,}")
         
         # Save merged data if requested
         if save_merged:
@@ -269,20 +305,22 @@ class KantarBLSAnalyzer:
         """Clean metrics data."""
         df = self.metrics.copy()
         
-        # Ensure numeric columns are numeric
-        numeric_cols = ['LIFT', 'DELTA', 'EXPOSED_PERCENT', 'CONTROL_PERCENT', 
-                        'EXPOSED_POPULATION', 'CONTROL_POPULATION', 'SIGNIFICANCE_LEVEL']
+        # Ensure numeric columns are numeric (using sample data column names)
+        numeric_cols = ['LIFT', 'DELTA', 'EXPOSED_', 'CONTROL_', 
+                        'EXPOSED_N', 'CONTROL_N', 'STATISTICAL_SIGNIFICANCE']
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # Calculate lift if missing
+        # Calculate lift if missing (using sample data column names)
         if 'LIFT' in df.columns and df['LIFT'].isna().any():
             mask = df['LIFT'].isna()
-            df.loc[mask, 'LIFT'] = (
-                (df.loc[mask, 'EXPOSED_PERCENT'] - df.loc[mask, 'CONTROL_PERCENT']) 
-                / df.loc[mask, 'CONTROL_PERCENT'].replace(0, np.nan) * 100
-            )
+            # Use EXPOSED_ and CONTROL_ from sample data
+            if 'EXPOSED_' in df.columns and 'CONTROL_' in df.columns:
+                df.loc[mask, 'LIFT'] = (
+                    (df.loc[mask, 'EXPOSED_'] - df.loc[mask, 'CONTROL_']) 
+                    / df.loc[mask, 'CONTROL_'].replace(0, np.nan) * 100
+                )
         
         return df
     
@@ -317,48 +355,71 @@ class KantarBLSAnalyzer:
         Merge metrics with filter metadata.
         
         Steps:
-        1. Join bls_metrics with kantar_bls_filter_ids on FILTER_ID
+        1. Join bls_metrics with kantar_bls_filter_ids on FILTER_ID (old data) or FILTER/NAME (transformed data)
         2. Join to kantar_bls_filters to get filter_name and group_name
+        
+        For sample data (kantar_bls_sample_data.csv):
+        - Uses FILTER column to merge with NAME column in filter tables
+        For old data (bls_metrics.csv):
+        - Uses FILTER_ID column to merge with FILTER_ID in filter tables
         """
         # Start with metrics
         merged = self.metrics.copy()
         
-        # Step 1: Merge with filter_ids to get GROUP_NAME, NAME, SURVEY_LABEL, etc.
-        if 'FILTER_ID' in merged.columns and 'FILTER_ID' in self.filter_ids.columns:
-            # Get available columns from filter_ids
-            filter_id_cols = ['FILTER_ID']
-            for col in ['GROUP_NAME', 'NAME', 'SURVEY_ID', 'SURVEY_LABEL']:
-                if col in self.filter_ids.columns:
-                    filter_id_cols.append(col)
-            
-            merged = merged.merge(
-                self.filter_ids[filter_id_cols],
-                on='FILTER_ID',
-                how='left'
-            )
+        # Detect data format: transformed data has FILTER column, old data has FILTER_ID
+        is_transformed_data = 'FILTER' in merged.columns and 'FILTER_ID' not in merged.columns
         
-        # Step 2: Merge with filters table to get additional filter_name and group_name
-        # (filters table may have more detailed information)
-        if 'FILTER_ID' in merged.columns and 'FILTER_ID' in self.filters.columns:
-            # Get available columns from filters
-            filter_cols = ['FILTER_ID']
-            for col in ['GROUP_NAME', 'NAME', 'SURVEY_ID']:
-                if col in self.filters.columns:
-                    filter_cols.append(col)
+        if is_transformed_data:
+            # Transformed data: merge using FILTER column (filter name) with NAME column
+            print("  Detected transformed data format: using FILTER column for merging")
             
-            # Remove duplicates to avoid many-to-many joins
-            filters_subset = self.filters[filter_cols].drop_duplicates(subset=['FILTER_ID'])
+            # Step 1: Merge with filter_ids using FILTER (name) -> NAME
+            if 'FILTER' in merged.columns and not self.filter_ids.empty and 'NAME' in self.filter_ids.columns:
+                # Get available columns from filter_ids
+                filter_id_cols = ['NAME']  # Use NAME as the join key
+                for col in ['FILTER_ID', 'GROUP_NAME', 'SURVEY_ID', 'SURVEY_LABEL']:
+                    if col in self.filter_ids.columns:
+                        filter_id_cols.append(col)
+                
+                # Rename NAME to FILTER for joining, then rename back
+                filter_ids_for_join = self.filter_ids[filter_id_cols].copy()
+                filter_ids_for_join = filter_ids_for_join.rename(columns={'NAME': 'FILTER'})
+                
+                # Remove duplicates to avoid many-to-many joins
+                filter_ids_for_join = filter_ids_for_join.drop_duplicates(subset=['FILTER'])
+                
+                merged = merged.merge(
+                    filter_ids_for_join,
+                    on='FILTER',
+                    how='left'
+                )
+                print(f"  Merged with filter_ids using FILTER->NAME: {len(merged):,} rows")
             
-            # Merge with suffixes to handle overlapping column names
-            merged = merged.merge(
-                filters_subset,
-                on='FILTER_ID',
-                how='left',
-                suffixes=('_filter_ids', '_filters')
-            )
+            # Step 2: Merge with filters table (if it has NAME column)
+            if 'FILTER' in merged.columns and not self.filters.empty and 'NAME' in self.filters.columns:
+                # Get available columns from filters
+                filter_cols = ['NAME']  # Use NAME as the join key
+                for col in ['FILTER_ID', 'GROUP_NAME', 'SURVEY_ID']:
+                    if col in self.filters.columns:
+                        filter_cols.append(col)
+                
+                # Rename NAME to FILTER for joining
+                filters_for_join = self.filters[filter_cols].copy()
+                filters_for_join = filters_for_join.rename(columns={'NAME': 'FILTER'})
+                
+                # Remove duplicates to avoid many-to-many joins
+                filters_for_join = filters_for_join.drop_duplicates(subset=['FILTER'])
+                
+                # Merge with suffixes to handle overlapping column names
+                merged = merged.merge(
+                    filters_for_join,
+                    on='FILTER',
+                    how='left',
+                    suffixes=('_filter_ids', '_filters')
+                )
+                print(f"  Merged with filters using FILTER->NAME: {len(merged):,} rows")
             
-            # Consolidate GROUP_NAME and NAME columns
-            # Prefer filters table values, fall back to filter_ids
+            # Consolidate GROUP_NAME columns
             if 'GROUP_NAME_filters' in merged.columns:
                 merged['GROUP_NAME'] = merged['GROUP_NAME_filters'].fillna(merged.get('GROUP_NAME_filter_ids', ''))
                 merged = merged.drop(columns=['GROUP_NAME_filters', 'GROUP_NAME_filter_ids'], errors='ignore')
@@ -366,18 +427,106 @@ class KantarBLSAnalyzer:
                 merged['GROUP_NAME'] = merged['GROUP_NAME_filter_ids']
                 merged = merged.drop(columns=['GROUP_NAME_filter_ids'], errors='ignore')
             
-            # Handle NAME/FILTER_NAME - use NAME from filters as FILTER_NAME
-            if 'NAME_filters' in merged.columns:
-                merged['FILTER_NAME'] = merged['NAME_filters'].fillna(merged.get('NAME_filter_ids', ''))
-                # Keep original NAME from filter_ids as well if it exists
-                if 'NAME_filter_ids' in merged.columns:
+            # Set FILTER_NAME from FILTER column (it's already the filter name)
+            if 'FILTER' in merged.columns:
+                merged['FILTER_NAME'] = merged['FILTER']
+        
+        else:
+            # Old data format: merge using FILTER_ID
+            print("  Detected old data format: using FILTER_ID column for merging")
+            
+            # Step 1: Merge with filter_ids to get GROUP_NAME, NAME, SURVEY_LABEL, etc.
+            if 'FILTER_ID' in merged.columns and not self.filter_ids.empty and 'FILTER_ID' in self.filter_ids.columns:
+                # Get available columns from filter_ids
+                filter_id_cols = ['FILTER_ID']
+                for col in ['GROUP_NAME', 'NAME', 'SURVEY_ID', 'SURVEY_LABEL']:
+                    if col in self.filter_ids.columns:
+                        filter_id_cols.append(col)
+                
+                merged = merged.merge(
+                    self.filter_ids[filter_id_cols],
+                    on='FILTER_ID',
+                    how='left'
+                )
+            
+            # Step 2: Merge with filters table to get additional filter_name and group_name
+            # (filters table may have more detailed information)
+            if 'FILTER_ID' in merged.columns and not self.filters.empty and 'FILTER_ID' in self.filters.columns:
+                # Get available columns from filters
+                filter_cols = ['FILTER_ID']
+                for col in ['GROUP_NAME', 'NAME', 'SURVEY_ID']:
+                    if col in self.filters.columns:
+                        filter_cols.append(col)
+                
+                # Remove duplicates to avoid many-to-many joins
+                filters_subset = self.filters[filter_cols].drop_duplicates(subset=['FILTER_ID'])
+                
+                # Merge with suffixes to handle overlapping column names
+                merged = merged.merge(
+                    filters_subset,
+                    on='FILTER_ID',
+                    how='left',
+                    suffixes=('_filter_ids', '_filters')
+                )
+                
+                # Consolidate GROUP_NAME and NAME columns
+                # Prefer filters table values, fall back to filter_ids
+                if 'GROUP_NAME_filters' in merged.columns:
+                    merged['GROUP_NAME'] = merged['GROUP_NAME_filters'].fillna(merged.get('GROUP_NAME_filter_ids', ''))
+                    merged = merged.drop(columns=['GROUP_NAME_filters', 'GROUP_NAME_filter_ids'], errors='ignore')
+                elif 'GROUP_NAME_filter_ids' in merged.columns:
+                    merged['GROUP_NAME'] = merged['GROUP_NAME_filter_ids']
+                    merged = merged.drop(columns=['GROUP_NAME_filter_ids'], errors='ignore')
+                
+                # Handle NAME/FILTER_NAME - use NAME from filters as FILTER_NAME
+                if 'NAME_filters' in merged.columns:
+                    merged['FILTER_NAME'] = merged['NAME_filters'].fillna(merged.get('NAME_filter_ids', ''))
+                    # Keep original NAME from filter_ids as well if it exists
+                    if 'NAME_filter_ids' in merged.columns:
+                        merged['NAME'] = merged['NAME_filter_ids']
+                    merged = merged.drop(columns=['NAME_filters', 'NAME_filter_ids'], errors='ignore')
+                elif 'NAME_filter_ids' in merged.columns:
+                    merged['FILTER_NAME'] = merged['NAME_filter_ids']
                     merged['NAME'] = merged['NAME_filter_ids']
-                merged = merged.drop(columns=['NAME_filters', 'NAME_filter_ids'], errors='ignore')
-            elif 'NAME_filter_ids' in merged.columns:
-                merged['FILTER_NAME'] = merged['NAME_filter_ids']
-                merged['NAME'] = merged['NAME_filter_ids']
         
         return merged
+    
+    def _extract_timestamp_from_limiting_filter(self, limiting_filter: str) -> Optional[str]:
+        """
+        Extract timestamp from LIMITING_FILTER column (for new data format).
+        
+        Examples:
+        - "Timestamp: 3/1/25-3/31/25" -> "2025-03-01"
+        - "Timestamp: 2/1/25-2/28/25" -> "2025-02-01"
+        - "Timestamp: 4/1/25-6/30/25" -> "2025-04-01" (quarterly, use start date)
+        """
+        if pd.isna(limiting_filter):
+            return None
+        
+        limiting_filter = str(limiting_filter).strip()
+        
+        # Pattern: "Timestamp: M/D/YY-M/D/YY" or "Timestamp: M/D/YY - M/D/YY"
+        pattern = r'Timestamp:\s*(\d{1,2})/(\d{1,2})/(\d{2,4})'
+        match = re.search(pattern, limiting_filter, re.IGNORECASE)
+        
+        if match:
+            month = int(match.group(1))
+            year_str = match.group(3)
+            
+            # Handle 2-digit years (assume 2000s)
+            if len(year_str) == 2:
+                year = 2000 + int(year_str)
+            else:
+                year = int(year_str)
+            
+            try:
+                # Use first day of the period as the timestamp
+                date = datetime(year, month, 1)  # Use 1st of month for consistency
+                return date.strftime("%Y-%m-%d")
+            except ValueError:
+                return None
+        
+        return None
     
     def _extract_dimensions(self) -> pd.DataFrame:
         """
@@ -387,8 +536,15 @@ class KantarBLSAnalyzer:
         - Channels are in filters call, often with "XM" prefix/folder
         - Time/date information is in filters call with "timestamp" as GROUP_NAME
         - Multiple filter IDs can be combined for aggregated analysis
+        
+        For transformed data:
+        - Channels are in WEIGHT_SET or EXPOSED_FILTER columns
+        - Time information is in LIMITING_FILTER column
         """
         df = self.merged_data.copy()
+        
+        # Check if this is transformed data (has WEIGHT_SET/EXPOSED_FILTER columns)
+        is_transformed_data = 'WEIGHT_SET' in df.columns or 'EXPOSED_FILTER' in df.columns
         
         # Extract channel from GROUP_NAME or FILTER_NAME or NAME
         # Look for "XM" prefix/folder (Kantar's channel folder structure)
@@ -404,33 +560,69 @@ class KantarBLSAnalyzer:
             'Outdoor': ['billboard', 'outdoor', 'ooh']
         }
         
-        def extract_channel(group_name, filter_name, name):
-            # Check for XM prefix (Kantar's channel folder structure)
-            group_lower = str(group_name).lower()
-            if 'xm' in group_lower or group_lower.startswith('xm'):
-                # Extract channel from the group name after XM prefix
-                text = f"{group_name} {filter_name} {name}".lower()
+        def extract_channel(row):
+            # For transformed data, extract from WEIGHT_SET or EXPOSED_FILTER
+            if is_transformed_data:
+                weight_set = str(row.get('WEIGHT_SET', '')).lower()
+                exposed_filter = str(row.get('EXPOSED_FILTER', '')).lower()
+                text = f"{weight_set} {exposed_filter}"
+                
+                # Pattern: "XM: N. Channel" or "XM: Channel"
+                patterns = [
+                    r'xm:\s*\d+\.\s*(\w+)',  # "XM: 2. Social"
+                    r'xm:\s*(\w+)',  # "XM: Social"
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    if match:
+                        channel = match.group(1).strip()
+                        if channel.lower() in ['any', 'all']:
+                            return "Any"
+                        if channel.lower().startswith('digital'):
+                            return "Digital"
+                        return channel.title()
+                
+                # Fallback to keyword matching
+                for channel, keywords in channel_keywords.items():
+                    if any(kw in text for kw in keywords):
+                        return channel
+                return 'Other'
             else:
-                # Try FILTER_NAME first (from merged file), then NAME, then GROUP_NAME
-                text = f"{group_name} {filter_name} {name}".lower()
-            
-            for channel, keywords in channel_keywords.items():
-                if any(kw in text for kw in keywords):
-                    return channel
-            return 'Other'
+                # Old data format: extract from GROUP_NAME, FILTER_NAME, NAME
+                group_name = str(row.get('GROUP_NAME', ''))
+                filter_name = str(row.get('FILTER_NAME', ''))
+                name = str(row.get('NAME', ''))
+                
+                # Check for XM prefix (Kantar's channel folder structure)
+                group_lower = group_name.lower()
+                if 'xm' in group_lower or group_lower.startswith('xm'):
+                    # Extract channel from the group name after XM prefix
+                    text = f"{group_name} {filter_name} {name}".lower()
+                else:
+                    # Try FILTER_NAME first (from merged file), then NAME, then GROUP_NAME
+                    text = f"{group_name} {filter_name} {name}".lower()
+                
+                for channel, keywords in channel_keywords.items():
+                    if any(kw in text for kw in keywords):
+                        return channel
+                return 'Other'
         
-        df['CHANNEL'] = df.apply(
-            lambda row: extract_channel(
-                str(row.get('GROUP_NAME', '')),
-                str(row.get('FILTER_NAME', '')),
-                str(row.get('NAME', ''))
-            ),
-            axis=1
-        )
+        df['CHANNEL'] = df.apply(extract_channel, axis=1)
         
-        # Extract time dimension (month/year) from FILTER_NAME, SURVEY_LABEL, or other fields
-        df['TIME_PERIOD'] = self._extract_time_period(df)
-        df['TIME_DATE'] = self._parse_time_to_date(df)
+        # Extract time dimension - handle both old and new formats
+        if is_transformed_data and 'LIMITING_FILTER' in df.columns:
+            # New format: extract from LIMITING_FILTER column
+            print("  Extracting timestamps from LIMITING_FILTER (new format)...")
+            df['TIMESTAMP'] = df['LIMITING_FILTER'].apply(self._extract_timestamp_from_limiting_filter)
+            df['TIMESTAMP_DATE'] = pd.to_datetime(df['TIMESTAMP'], errors='coerce')
+            # Also create TIME_PERIOD and TIME_DATE for compatibility
+            df['TIME_PERIOD'] = df['TIMESTAMP_DATE'].dt.strftime('%B %Y').fillna('Unknown')
+            df['TIME_DATE'] = df['TIMESTAMP_DATE']
+        else:
+            # Old format: extract from FILTER_NAME, SURVEY_LABEL, or other fields
+            df['TIME_PERIOD'] = self._extract_time_period(df)
+            df['TIME_DATE'] = self._parse_time_to_date(df)
         
         # Extract demographics from GROUP_NAME or NAME
         demo_keywords = {
@@ -699,8 +891,25 @@ class KantarBLSAnalyzer:
             self.merged_data['TIME_DATE'] = pd.to_datetime(self.merged_data['TIME_DATE'], errors='coerce')
         
         print(f"✓ Loaded merged dataset: {len(self.merged_data):,} rows")
-        print(f"✓ Unique filters: {self.merged_data['FILTER_ID'].nunique():,}")
-        print(f"✓ Unique metrics: {self.merged_data['METRIC_ID'].nunique():,}")
+        
+        # Handle FILTER_ID - create from FILTER column if needed (sample data format)
+        is_sample_data = 'FILTER' in self.merged_data.columns and 'FILTER_ID' not in self.merged_data.columns
+        if is_sample_data:
+            # Create FILTER_ID from FILTER column for compatibility
+            if 'FILTER_ID' not in self.merged_data.columns and 'FILTER' in self.merged_data.columns:
+                self.merged_data['FILTER_ID'] = self.merged_data['FILTER']
+        
+        # Print unique counts (handle missing columns gracefully)
+        if 'FILTER_ID' in self.merged_data.columns:
+            print(f"✓ Unique filters: {self.merged_data['FILTER_ID'].nunique():,}")
+        elif 'FILTER' in self.merged_data.columns:
+            print(f"✓ Unique filters: {self.merged_data['FILTER'].nunique():,}")
+        
+        # Use METRIC column directly (sample data has METRIC column)
+        if 'METRIC' in self.merged_data.columns:
+            print(f"✓ Unique metrics: {self.merged_data['METRIC'].nunique():,}")
+        elif 'FOLDER_NAME' in self.merged_data.columns:
+            print(f"✓ Unique metrics: {self.merged_data['FOLDER_NAME'].nunique():,}")
     
     def analyze_trends(self, metric_name: Optional[str] = None, 
                       group_by: List[str] = None) -> pd.DataFrame:
@@ -726,19 +935,19 @@ class KantarBLSAnalyzer:
         
         # Filter by metric if specified
         if metric_name:
-            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+            df = df[df['METRIC'].str.contains(metric_name, case=False, na=False)]
         
         # Default grouping
         if group_by is None:
-            group_by = ['CHANNEL', 'METRIC_NAME']
+            group_by = ['CHANNEL', 'METRIC']
         
         # Aggregate
         agg_dict = {
             'LIFT': ['mean', 'std', 'count'],
             'DELTA': ['mean', 'std'],
-            'EXPOSED_PERCENT': 'mean',
-            'CONTROL_PERCENT': 'mean',
-            'SIGNIFICANCE_LEVEL': 'mean'
+            'EXPOSED_': 'mean',
+            'CONTROL_': 'mean',
+            'STATISTICAL_SIGNIFICANCE': 'mean'
         }
         
         # Only include columns that exist
@@ -769,17 +978,21 @@ class KantarBLSAnalyzer:
         
         df = self.merged_data.copy()
         
-        # Add significance flag based on SIGNIFICANCE_LEVEL
-        if 'SIGNIFICANCE_LEVEL' in df.columns:
-            df['IS_SIGNIFICANT'] = df['SIGNIFICANCE_LEVEL'] <= alpha
+        # Add significance flag based on STATISTICAL_SIGNIFICANCE (sample data column name)
+        if 'STATISTICAL_SIGNIFICANCE' in df.columns:
+            df['IS_SIGNIFICANT'] = df['STATISTICAL_SIGNIFICANCE'] <= alpha
         else:
             # If no significance level, use a heuristic based on sample size and lift
             # This is a simplified approach - adjust based on your needs
-            df['IS_SIGNIFICANT'] = (
-                (df['EXPOSED_POPULATION'] >= 100) & 
-                (df['CONTROL_POPULATION'] >= 100) &
-                (abs(df['LIFT']) > 5)  # At least 5% lift
-            )
+            # Use EXPOSED_N and CONTROL_N from sample data
+            if 'EXPOSED_N' in df.columns and 'CONTROL_N' in df.columns:
+                df['IS_SIGNIFICANT'] = (
+                    (df['EXPOSED_N'] >= 100) & 
+                    (df['CONTROL_N'] >= 100) &
+                    (abs(df['LIFT']) > 0.05)  # At least 5% lift (LIFT stored as decimal: 0.05 = 5%)
+                )
+            else:
+                df['IS_SIGNIFICANT'] = False
         
         # Calculate confidence intervals (simplified)
         # For proper CI calculation, you'd need the standard errors
@@ -813,23 +1026,23 @@ class KantarBLSAnalyzer:
         df = self.merged_data.copy()
         
         # Group by metric and filter to get lift per metric-filter combination
-        metric_filter_lift = df.groupby(['METRIC_NAME', 'FILTER_ID']).agg({
+        metric_filter_lift = df.groupby(['METRIC', 'FILTER_ID']).agg({
             'LIFT': 'mean',
-            'SIGNIFICANCE_LEVEL': 'mean',
-            'EXPOSED_POPULATION': 'sum',
-            'CONTROL_POPULATION': 'sum'
+            'STATISTICAL_SIGNIFICANCE': 'mean',
+            'EXPOSED_N': 'sum',
+            'CONTROL_N': 'sum'
         }).reset_index()
         
         # Calculate consistency metrics per brand metric
-        metric_consistency = metric_filter_lift.groupby('METRIC_NAME').agg({
+        metric_consistency = metric_filter_lift.groupby('METRIC').agg({
             'LIFT': ['mean', 'std', 'count', lambda x: (x > min_lift).sum()],
-            'SIGNIFICANCE_LEVEL': 'mean',
+            'STATISTICAL_SIGNIFICANCE': 'mean',
             'FILTER_ID': 'nunique'
         }).reset_index()
         
         # Flatten column names
         metric_consistency.columns = [
-            'METRIC_NAME', 'AVG_LIFT', 'STD_LIFT', 'TOTAL_OBSERVATIONS',
+            'METRIC', 'AVG_LIFT', 'STD_LIFT', 'TOTAL_OBSERVATIONS',
             'POSITIVE_LIFT_COUNT', 'AVG_SIGNIFICANCE', 'UNIQUE_FILTERS'
         ]
         
@@ -881,12 +1094,12 @@ class KantarBLSAnalyzer:
         
         # Filter by metric if specified
         if metric_name:
-            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+            df = df[df['METRIC'].str.contains(metric_name, case=False, na=False)]
         
         # Group by metric and filter dimensions
-        consistency_analysis = df.groupby(['METRIC_NAME', 'FILTER_ID']).agg({
+        consistency_analysis = df.groupby(['METRIC', 'FILTER_ID']).agg({
             'LIFT': ['mean', 'std', 'count'],
-            'SIGNIFICANCE_LEVEL': 'mean',
+            'STATISTICAL_SIGNIFICANCE': 'mean',
             'CHANNEL': 'first',
             'FILTER_NAME': 'first',
             'GROUP_NAME': 'first',
@@ -895,7 +1108,7 @@ class KantarBLSAnalyzer:
         
         # Flatten columns
         consistency_analysis.columns = [
-            'METRIC_NAME', 'FILTER_ID', 'LIFT_MEAN', 'LIFT_STD', 'OBSERVATIONS',
+            'METRIC', 'FILTER_ID', 'LIFT_MEAN', 'LIFT_STD', 'OBSERVATIONS',
             'AVG_SIGNIFICANCE', 'CHANNEL', 'FILTER_NAME', 'GROUP_NAME', 'TIME_PERIOD'
         ]
         
@@ -927,10 +1140,10 @@ class KantarBLSAnalyzer:
         patterns = {}
         
         # 1. Consistency by channel
-        channel_consistency = df.groupby(['CHANNEL', 'METRIC_NAME']).agg({
+        channel_consistency = df.groupby(['CHANNEL', 'METRIC']).agg({
             'LIFT': ['mean', 'std', 'count']
         }).reset_index()
-        channel_consistency.columns = ['CHANNEL', 'METRIC_NAME', 'MEAN_LIFT', 'STD_LIFT', 'COUNT']
+        channel_consistency.columns = ['CHANNEL', 'METRIC', 'MEAN_LIFT', 'STD_LIFT', 'COUNT']
         channel_consistency = channel_consistency[channel_consistency['COUNT'] >= min_observations]
         channel_consistency['CV'] = channel_consistency['STD_LIFT'] / channel_consistency['MEAN_LIFT'].abs()
         channel_consistency['IS_CONSISTENT'] = channel_consistency['CV'] < 0.5  # Coefficient of variation < 50%
@@ -940,22 +1153,22 @@ class KantarBLSAnalyzer:
         # 2. Time trends (enhanced for time series analysis)
         if 'TIME_PERIOD' in df.columns or 'TIME_DATE' in df.columns:
             time_col = 'TIME_DATE' if 'TIME_DATE' in df.columns else 'TIME_PERIOD'
-            time_trends = df.groupby([time_col, 'METRIC_NAME']).agg({
+            time_trends = df.groupby([time_col, 'METRIC']).agg({
                 'LIFT': ['mean', 'std', 'count'],
-                'SIGNIFICANCE_LEVEL': 'mean',
-                'EXPOSED_POPULATION': 'sum',
-                'CONTROL_POPULATION': 'sum'
+                'STATISTICAL_SIGNIFICANCE': 'mean',
+                'EXPOSED_N': 'sum',
+                'CONTROL_N': 'sum'
             }).reset_index()
-            time_trends.columns = [time_col, 'METRIC_NAME', 'MEAN_LIFT', 'STD_LIFT', 'COUNT', 
+            time_trends.columns = [time_col, 'METRIC', 'MEAN_LIFT', 'STD_LIFT', 'COUNT', 
                                    'AVG_SIGNIFICANCE', 'EXPOSED_POP', 'CONTROL_POP']
             patterns['time_trends'] = time_trends
         
         # 3. Metric performance ranking
-        metric_performance = df.groupby('METRIC_NAME').agg({
+        metric_performance = df.groupby('METRIC').agg({
             'LIFT': ['mean', 'std', 'count'],
-            'SIGNIFICANCE_LEVEL': 'mean'
+            'STATISTICAL_SIGNIFICANCE': 'mean'
         }).reset_index()
-        metric_performance.columns = ['METRIC_NAME', 'MEAN_LIFT', 'STD_LIFT', 'COUNT', 'AVG_SIG_LEVEL']
+        metric_performance.columns = ['METRIC', 'MEAN_LIFT', 'STD_LIFT', 'COUNT', 'AVG_SIG_LEVEL']
         metric_performance = metric_performance.sort_values('MEAN_LIFT', ascending=False)
         patterns['metric_performance'] = metric_performance
         
@@ -1020,6 +1233,159 @@ class KantarBLSAnalyzer:
         
         return str(report_path)
     
+    def plot_time_series(
+        self,
+        metric_name: str,
+        channel: Optional[str] = None,
+        save_path: Optional[Path] = None
+    ):
+        """
+        Plot time series for a specific metric.
+        
+        Parameters:
+        -----------
+        metric_name : str
+            Metric name to plot
+        channel : str, optional
+            Filter to specific channel
+        save_path : Path, optional
+            Path to save the plot. If None, displays the plot.
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        # Get time series data
+        ts_data = self.analyze_time_series(metric_name=metric_name, channel=channel)
+        
+        if len(ts_data) == 0:
+            print(f"No data found for metric: {metric_name}")
+            return
+        
+        # Determine time column
+        time_col = 'TIMESTAMP_DATE' if 'TIMESTAMP_DATE' in ts_data.columns else 'TIME_DATE'
+        if time_col not in ts_data.columns:
+            time_col = 'TIME_PERIOD'
+        
+        # Create plot
+        fig, ax = plt.subplots(figsize=(14, 7))
+        
+        # Get mean lift column
+        mean_col = [c for c in ts_data.columns if 'mean' in c.lower() and 'lift' in c.lower()][0] if any('mean' in c.lower() and 'lift' in c.lower() for c in ts_data.columns) else None
+        std_col = [c for c in ts_data.columns if 'std' in c.lower() and 'lift' in c.lower()][0] if any('std' in c.lower() and 'lift' in c.lower() for c in ts_data.columns) else None
+        
+        if mean_col:
+            # Convert to datetime if needed
+            if time_col in ['TIMESTAMP_DATE', 'TIME_DATE']:
+                ts_data[time_col] = pd.to_datetime(ts_data[time_col], errors='coerce')
+                ts_data = ts_data.sort_values(time_col)
+            
+            # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+            ax.plot(ts_data[time_col], ts_data[mean_col] * 100, 
+                    marker='o', linewidth=2, markersize=8, label='Mean Lift')
+            
+            # Add error bars (std)
+            if std_col:
+                ax.fill_between(
+                    ts_data[time_col],
+                    (ts_data[mean_col] - ts_data[std_col]) * 100,
+                    (ts_data[mean_col] + ts_data[std_col]) * 100,
+                    alpha=0.2,
+                    label='±1 Std Dev'
+                )
+        
+        ax.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        ax.set_xlabel('Date', fontsize=12)
+        ax.set_ylabel('Lift (%)', fontsize=12)
+        title = f'Brand Lift Over Time: {metric_name}'
+        if channel:
+            title += f' - {channel}'
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"  Saved plot to {save_path}")
+        else:
+            plt.show()
+        
+        plt.close()
+    
+    def plot_channel_comparison(
+        self,
+        metric_name: str,
+        save_path: Optional[Path] = None
+    ):
+        """
+        Plot channel comparison for a specific metric.
+        
+        Parameters:
+        -----------
+        metric_name : str
+            Metric name to plot
+        save_path : Path, optional
+            Path to save the plot. If None, displays the plot.
+        """
+        if self.merged_data is None:
+            raise ValueError("Must run clean_and_merge() first")
+        
+        # Get channel analysis data
+        channel_data = self.analyze_by_channel(metric_name=metric_name, min_observations=1)
+        
+        if len(channel_data) == 0:
+            print(f"No data found for metric: {metric_name}")
+            return
+        
+        # Create plot
+        fig, ax = plt.subplots(figsize=(12, 7))
+        
+        # Get mean lift column
+        mean_col = [c for c in channel_data.columns if 'mean' in c.lower() and 'lift' in c.lower()][0] if any('mean' in c.lower() and 'lift' in c.lower() for c in channel_data.columns) else None
+        std_col = [c for c in channel_data.columns if 'std' in c.lower() and 'lift' in c.lower()][0] if any('std' in c.lower() and 'lift' in c.lower() for c in channel_data.columns) else None
+        
+        if mean_col:
+            # Sort by mean lift
+            channel_data = channel_data.sort_values(mean_col, ascending=True)
+            
+            # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+            bars = ax.barh(channel_data['CHANNEL'], channel_data[mean_col] * 100)
+            
+            # Color bars based on lift value
+            colors = ['green' if x > 0 else 'red' for x in channel_data[mean_col]]
+            for bar, color in zip(bars, colors):
+                bar.set_color(color)
+                bar.set_alpha(0.7)
+            
+            # Add error bars
+            if std_col:
+                ax.errorbar(
+                    channel_data[mean_col] * 100,
+                    channel_data['CHANNEL'],
+                    xerr=channel_data[std_col] * 100,
+                    fmt='none',
+                    color='black',
+                    capsize=3
+                )
+        
+        ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+        ax.set_xlabel('Average Lift (%)', fontsize=12)
+        ax.set_ylabel('Channel', fontsize=12)
+        ax.set_title(f'Brand Lift by Channel: {metric_name}', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3, axis='x')
+        
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"  Saved plot to {save_path}")
+        else:
+            plt.show()
+        
+        plt.close()
+    
     def _create_visualizations(self, patterns: Dict, output_path: Path):
         """Create visualization charts."""
         
@@ -1027,7 +1393,8 @@ class KantarBLSAnalyzer:
         if 'channel_consistency' in patterns:
             fig, ax = plt.subplots(figsize=(12, 6))
             channel_data = patterns['channel_consistency'].groupby('CHANNEL')['MEAN_LIFT'].mean().sort_values()
-            channel_data.plot(kind='barh', ax=ax)
+            # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+            (channel_data * 100).plot(kind='barh', ax=ax)
             ax.set_xlabel('Average Lift (%)')
             ax.set_title('Average Brand Lift by Channel')
             ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
@@ -1041,8 +1408,9 @@ class KantarBLSAnalyzer:
             
             # Scatter plot: Consistency Score vs Average Lift
             fig, ax = plt.subplots(figsize=(14, 8))
+            # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
             scatter = ax.scatter(
-                consistent['AVG_LIFT'],
+                consistent['AVG_LIFT'] * 100,
                 consistent['CONSISTENCY_SCORE'],
                 s=consistent['UNIQUE_FILTERS'] * 10,
                 c=consistent['UNIQUE_FILTERS'],
@@ -1058,9 +1426,10 @@ class KantarBLSAnalyzer:
             
             # Add metric names for top performers
             for idx, row in consistent.head(10).iterrows():
+                # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
                 ax.annotate(
-                    row['METRIC_NAME'][:40] + '...' if len(row['METRIC_NAME']) > 40 else row['METRIC_NAME'],
-                    (row['AVG_LIFT'], row['CONSISTENCY_SCORE']),
+                    row['METRIC'][:40] + '...' if len(row['METRIC']) > 40 else row['METRIC'],
+                    (row['AVG_LIFT'] * 100, row['CONSISTENCY_SCORE']),
                     fontsize=8,
                     alpha=0.7
                 )
@@ -1080,7 +1449,7 @@ class KantarBLSAnalyzer:
             ax.barh(y_pos, top_consistent['CONSISTENCY_SCORE'], color='steelblue')
             ax.set_yticks(y_pos)
             ax.set_yticklabels([name[:60] + '...' if len(name) > 60 else name 
-                               for name in top_consistent['METRIC_NAME']], fontsize=9)
+                               for name in top_consistent['METRIC']], fontsize=9)
             ax.set_xlabel('Consistency Score', fontsize=12)
             ax.set_title('Top 15 Most Consistent Metrics Across Filters', fontsize=14, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='x')
@@ -1088,7 +1457,8 @@ class KantarBLSAnalyzer:
             # Add value labels
             for i, (idx, row) in enumerate(top_consistent.iterrows()):
                 ax.text(row['CONSISTENCY_SCORE'] + 0.01, i, 
-                       f"Lift: {row['AVG_LIFT']:.2f}% | Filters: {int(row['UNIQUE_FILTERS'])}",
+                       # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+                       f"Lift: {row['AVG_LIFT']*100:.2f}% | Filters: {int(row['UNIQUE_FILTERS'])}",
                        va='center', fontsize=8)
             
             plt.tight_layout()
@@ -1099,10 +1469,11 @@ class KantarBLSAnalyzer:
         if 'metric_performance' in patterns:
             top_metrics = patterns['metric_performance'].head(15)
             fig, ax = plt.subplots(figsize=(12, 8))
-            ax.barh(range(len(top_metrics)), top_metrics['MEAN_LIFT'])
+            # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+            ax.barh(range(len(top_metrics)), top_metrics['MEAN_LIFT'] * 100)
             ax.set_yticks(range(len(top_metrics)))
             ax.set_yticklabels([name[:60] + '...' if len(name) > 60 else name 
-                               for name in top_metrics['METRIC_NAME']], fontsize=8)
+                               for name in top_metrics['METRIC']], fontsize=8)
             ax.set_xlabel('Average Lift (%)')
             ax.set_title('Top 15 Metrics by Average Lift')
             ax.axvline(x=0, color='black', linestyle='--', linewidth=0.5)
@@ -1113,13 +1484,14 @@ class KantarBLSAnalyzer:
         # 3. Consistency heatmap
         if 'channel_consistency' in patterns:
             pivot = patterns['channel_consistency'].pivot_table(
-                index='METRIC_NAME',
+                index='METRIC',
                 columns='CHANNEL',
                 values='MEAN_LIFT'
             )
             if not pivot.empty:
                 fig, ax = plt.subplots(figsize=(14, max(8, len(pivot) * 0.3)))
-                sns.heatmap(pivot, annot=True, fmt='.1f', cmap='RdYlGn', center=0, ax=ax)
+                # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+                sns.heatmap(pivot * 100, annot=True, fmt='.1f', cmap='RdYlGn', center=0, ax=ax, cbar_kws={'label': 'Lift (%)'})
                 ax.set_title('Lift Heatmap: Metrics by Channel')
                 plt.tight_layout()
                 plt.savefig(output_path / 'lift_heatmap.png', dpi=300, bbox_inches='tight')
@@ -1136,7 +1508,8 @@ class KantarBLSAnalyzer:
             top_5 = patterns['metric_performance'].head(5)
             summary.append("Top 5 Metrics by Average Lift:\n")
             for idx, row in top_5.iterrows():
-                summary.append(f"  {row['METRIC_NAME']}: {row['MEAN_LIFT']:.2f}% (n={row['COUNT']})\n")
+                # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+                summary.append(f"  {row['METRIC']}: {row['MEAN_LIFT']*100:.2f}% (n={row['COUNT']})\n")
             summary.append("\n")
         
         if 'channel_consistency' in patterns:
@@ -1146,7 +1519,8 @@ class KantarBLSAnalyzer:
             })
             summary.append("Channel Performance:\n")
             for channel, row in channel_summary.iterrows():
-                summary.append(f"  {channel}: {row['MEAN_LIFT']:.2f}% avg lift, "
+                # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+                summary.append(f"  {channel}: {row['MEAN_LIFT']*100:.2f}% avg lift, "
                              f"{row['IS_CONSISTENT']:.1f}% consistent metrics\n")
             summary.append("\n")
         
@@ -1162,8 +1536,9 @@ class KantarBLSAnalyzer:
             summary.append("Consistent Signals Across Filters:\n")
             summary.append("  (Metrics that perform reliably across multiple filters/channels)\n")
             for idx, row in top_5_consistent.iterrows():
-                summary.append(f"  {row['METRIC_NAME'][:60]}: "
-                             f"Lift: {row['AVG_LIFT']:.2f}%, "
+                # LIFT is stored as decimal (0.20 = 20%), so multiply by 100 for display
+                summary.append(f"  {row['METRIC'][:60]}: "
+                             f"Lift: {row['AVG_LIFT']*100:.2f}%, "
                              f"Filters: {int(row['UNIQUE_FILTERS'])}, "
                              f"Consistency: {row['CONSISTENCY_SCORE']:.2f}\n")
             summary.append(f"\n  Total metrics with consistent cross-filter signal: {len(consistent)}\n")
@@ -1201,7 +1576,7 @@ class KantarBLSAnalyzer:
         
         # Filter by metric if specified
         if metric_name:
-            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+            df = df[df['METRIC'].str.contains(metric_name, case=False, na=False)]
         
         # Filter by channel if specified
         if channel:
@@ -1228,17 +1603,17 @@ class KantarBLSAnalyzer:
         agg_dict = {
             'LIFT': ['mean', 'std', 'count'],
             'DELTA': 'mean',
-            'EXPOSED_PERCENT': 'mean',
-            'CONTROL_PERCENT': 'mean',
-            'SIGNIFICANCE_LEVEL': 'mean',
-            'EXPOSED_POPULATION': 'sum',
-            'CONTROL_POPULATION': 'sum'
+            'EXPOSED_': 'mean',
+            'CONTROL_': 'mean',
+            'STATISTICAL_SIGNIFICANCE': 'mean',
+            'EXPOSED_N': 'sum',
+            'CONTROL_N': 'sum'
         }
         
         # Only include columns that exist
         agg_dict = {k: v for k, v in agg_dict.items() if k in df.columns}
         
-        group_by = [time_col, 'METRIC_NAME']
+        group_by = [time_col, 'METRIC']
         if 'CHANNEL' in df.columns:
             group_by.append('CHANNEL')
         
@@ -1282,7 +1657,7 @@ class KantarBLSAnalyzer:
         
         # Filter by metric if specified
         if metric_name:
-            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+            df = df[df['METRIC'].str.contains(metric_name, case=False, na=False)]
         
         # Filter by time period if specified
         if time_period:
@@ -1298,17 +1673,17 @@ class KantarBLSAnalyzer:
         agg_dict = {
             'LIFT': ['mean', 'std', 'count'],
             'DELTA': 'mean',
-            'EXPOSED_PERCENT': 'mean',
-            'CONTROL_PERCENT': 'mean',
-            'SIGNIFICANCE_LEVEL': 'mean',
-            'EXPOSED_POPULATION': 'sum',
-            'CONTROL_POPULATION': 'sum'
+            'EXPOSED_': 'mean',
+            'CONTROL_': 'mean',
+            'STATISTICAL_SIGNIFICANCE': 'mean',
+            'EXPOSED_N': 'sum',
+            'CONTROL_N': 'sum'
         }
         
         # Only include columns that exist
         agg_dict = {k: v for k, v in agg_dict.items() if k in df.columns}
         
-        group_by = ['CHANNEL', 'METRIC_NAME']
+        group_by = ['CHANNEL', 'METRIC']
         if 'TIME_PERIOD' in df.columns:
             group_by.append('TIME_PERIOD')
         elif 'TIME_DATE' in df.columns:
@@ -1369,23 +1744,23 @@ class KantarBLSAnalyzer:
         
         # Filter by metric if specified
         if metric_name:
-            df = df[df['METRIC_NAME'].str.contains(metric_name, case=False, na=False)]
+            df = df[df['METRIC'].str.contains(metric_name, case=False, na=False)]
         
         # Aggregate based on method
         if method == 'weighted_mean':
             # Weight by population size
-            if 'EXPOSED_POPULATION' in df.columns and 'CONTROL_POPULATION' in df.columns:
-                df['TOTAL_POPULATION'] = df['EXPOSED_POPULATION'] + df['CONTROL_POPULATION']
+            if 'EXPOSED_N' in df.columns and 'CONTROL_N' in df.columns:
+                df['TOTAL_POPULATION'] = df['EXPOSED_N'] + df['CONTROL_N']
                 df['WEIGHTED_LIFT'] = df['LIFT'] * df['TOTAL_POPULATION']
                 
-                results = df.groupby('METRIC_NAME').agg({
+                results = df.groupby('METRIC').agg({
                     'WEIGHTED_LIFT': 'sum',
                     'TOTAL_POPULATION': 'sum',
                     'LIFT': ['mean', 'std', 'count'],
                     'DELTA': 'mean',
-                    'SIGNIFICANCE_LEVEL': 'mean',
-                    'EXPOSED_POPULATION': 'sum',
-                    'CONTROL_POPULATION': 'sum'
+                    'STATISTICAL_SIGNIFICANCE': 'mean',
+                    'EXPOSED_N': 'sum',
+                    'CONTROL_N': 'sum'
                 }).reset_index()
                 
                 results['AGGREGATED_LIFT'] = results['WEIGHTED_LIFT'] / results['TOTAL_POPULATION']
@@ -1394,22 +1769,22 @@ class KantarBLSAnalyzer:
                 method = 'mean'  # Fallback if population columns not available
         
         if method == 'mean':
-            results = df.groupby('METRIC_NAME').agg({
+            results = df.groupby('METRIC').agg({
                 'LIFT': ['mean', 'std', 'count'],
                 'DELTA': 'mean',
-                'EXPOSED_PERCENT': 'mean',
-                'CONTROL_PERCENT': 'mean',
-                'SIGNIFICANCE_LEVEL': 'mean',
-                'EXPOSED_POPULATION': 'sum',
-                'CONTROL_POPULATION': 'sum'
+                'EXPOSED_': 'mean',
+                'CONTROL_': 'mean',
+                'STATISTICAL_SIGNIFICANCE': 'mean',
+                'EXPOSED_N': 'sum',
+                'CONTROL_N': 'sum'
             }).reset_index()
         
         elif method == 'sum':
-            results = df.groupby('METRIC_NAME').agg({
+            results = df.groupby('METRIC').agg({
                 'LIFT': 'sum',
                 'DELTA': 'sum',
-                'EXPOSED_POPULATION': 'sum',
-                'CONTROL_POPULATION': 'sum'
+                'EXPOSED_N': 'sum',
+                'CONTROL_N': 'sum'
             }).reset_index()
         
         # Flatten column names
@@ -1592,7 +1967,7 @@ class KantarBLSAnalyzer:
         # 4. Trend analysis
         print("\n4. Saving trend analysis...")
         try:
-            trends = self.analyze_trends(group_by=['CHANNEL', 'METRIC_NAME'])
+            trends = self.analyze_trends(group_by=['CHANNEL', 'METRIC'])
             filename = f"trends_by_channel_metric_{datetime.now().strftime('%Y%m%d')}"
             file_path = self.save_analysis_results(trends, filename, output_dir, format)
             saved_files['trends'] = file_path
@@ -1690,7 +2065,22 @@ class KantarBLSAnalyzer:
 
 
 def main():
-    """Main execution function."""
+    """
+    Main execution function - unified analysis pipeline.
+    
+    This function provides a comprehensive analysis workflow that handles:
+    - Both old and new data formats
+    - Time series analysis
+    - Channel analysis
+    - Pattern detection
+    - Visualization generation
+    - Report generation
+    """
+    print("=" * 80)
+    print("KANTAR BLS COMPREHENSIVE ANALYSIS")
+    print("=" * 80)
+    print()
+    
     # Initialize analyzer (uses default data_dir: ../data)
     analyzer = KantarBLSAnalyzer()
     
@@ -1702,26 +2092,64 @@ def main():
     analyzer.clean_and_merge(save_merged=True)
     
     # Analyze trends
-    print("\nAnalyzing trends...")
-    trends = analyzer.analyze_trends(group_by=['CHANNEL', 'METRIC_NAME'])
+    print("\n" + "=" * 80)
+    print("ANALYZING TRENDS")
+    print("=" * 80)
+    trends = analyzer.analyze_trends(group_by=['CHANNEL', 'METRIC'])
     print(f"✓ Found {len(trends)} trend combinations")
     
     # Detect significance
-    print("\nDetecting significant results...")
+    print("\n" + "=" * 80)
+    print("DETECTING SIGNIFICANT RESULTS")
+    print("=" * 80)
     significant = analyzer.detect_significance()
     sig_count = significant['IS_SIGNIFICANT'].sum() if 'IS_SIGNIFICANT' in significant.columns else 0
     print(f"✓ Found {sig_count:,} significant results")
     
     # Identify patterns
-    print("\nIdentifying patterns...")
+    print("\n" + "=" * 80)
+    print("IDENTIFYING PATTERNS")
+    print("=" * 80)
     patterns = analyzer.identify_patterns()
     print(f"✓ Analyzed {len(patterns)} pattern categories")
+    
+    # Time series analysis (if timestamps are available)
+    print("\n" + "=" * 80)
+    print("TIME SERIES ANALYSIS")
+    print("=" * 80)
+    try:
+        time_series = analyzer.analyze_time_series()
+        print(f"✓ Generated {len(time_series):,} time series data points")
+    except Exception as e:
+        print(f"⚠ Time series analysis skipped: {str(e)}")
+        time_series = None
+    
+    # Channel analysis
+    print("\n" + "=" * 80)
+    print("CHANNEL ANALYSIS")
+    print("=" * 80)
+    try:
+        channel_analysis = analyzer.analyze_by_channel()
+        print(f"✓ Generated {len(channel_analysis):,} channel-metric combinations")
+    except Exception as e:
+        print(f"⚠ Channel analysis skipped: {str(e)}")
+        channel_analysis = None
     
     # Generate report in output directory
     script_dir = Path(__file__).parent
     output_dir = script_dir.parent / "output"
+    output_dir.mkdir(exist_ok=True)
+    
+    print("\n" + "=" * 80)
+    print("GENERATING REPORT AND VISUALIZATIONS")
+    print("=" * 80)
     report_path = analyzer.generate_report(output_dir=str(output_dir))
-    print(f"\n✓ Analysis complete! Report saved to: {report_path}")
+    print(f"✓ Report saved to: {report_path}")
+    
+    print("\n" + "=" * 80)
+    print("ANALYSIS COMPLETE!")
+    print("=" * 80)
+    print(f"\nAll outputs saved to: {output_dir}")
     
     return analyzer, patterns
 

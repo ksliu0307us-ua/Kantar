@@ -171,6 +171,7 @@ def show_data_loading():
     st.subheader("Available Files")
     
     required_files = [
+        "kantar_bls_sample_data.csv",
         "bls_metrics.csv",
         "bls_metrics_with_filters.csv",
         "kantar_bls_filters.csv",

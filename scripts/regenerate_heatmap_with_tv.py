@@ -82,7 +82,7 @@ def main():
     output_dir = script_dir.parent / "output"
     output_dir.mkdir(exist_ok=True)
     
-    # Load new sample data
+    # Load sample data (has timestamps and is complete)
     sample_file = data_dir / "kantar_bls_sample_data.csv"
     if not sample_file.exists():
         print(f"Error: {sample_file} not found!")
@@ -103,8 +103,13 @@ def main():
         axis=1
     )
     
-    # Clean metric names
-    df['METRIC_CLEAN'] = df['METRIC'].str.strip()
+    # Clean metric names - use FOLDER_NAME if METRIC column doesn't exist (transformed data)
+    if 'METRIC' in df.columns:
+        df['METRIC_CLEAN'] = df['METRIC'].str.strip()
+    elif 'FOLDER_NAME' in df.columns:
+        df['METRIC_CLEAN'] = df['FOLDER_NAME'].str.strip()
+    else:
+        raise ValueError("Neither METRIC nor FOLDER_NAME column found in data")
     
     # Check channels found
     print("\nChannels found:")

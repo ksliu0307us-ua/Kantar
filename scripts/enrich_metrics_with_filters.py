@@ -2,9 +2,15 @@
 Enrich BLS Metrics with Human-Readable Filter Names
 ===================================================
 
-This script joins bls_metrics with kantar_bls_filters and kantar_bls_filter_ids
-using FILTER_ID as the join key to create enriched metrics with human-readable
-filter names like "TV - Hispanic, exposed", "Gen Z, not exposed", etc.
+This script joins metrics data with kantar_bls_filters and kantar_bls_filter_ids
+to create enriched metrics with human-readable filter names like "TV - Hispanic, exposed", 
+"Gen Z, not exposed", etc.
+
+For sample data (kantar_bls_sample_data.csv):
+- Uses FILTER column (filter name) to merge with NAME column in filter tables
+
+For old data (bls_metrics.csv):
+- Uses FILTER_ID column to merge with FILTER_ID in filter tables
 """
 
 import pandas as pd
@@ -124,11 +130,15 @@ def enrich_metrics():
     print("Step 1: Loading data files...")
     print("-" * 80)
     
-    # Load bls_metrics
-    metrics_file = data_dir / "bls_metrics.csv"
+    # Load kantar_bls_sample_data (has timestamps and is complete)
+    metrics_file = data_dir / "kantar_bls_sample_data.csv"
     if not metrics_file.exists():
-        print(f"Error: {metrics_file} not found!")
-        return
+        # Fallback to bls_metrics.csv if sample data not available
+        metrics_file = data_dir / "bls_metrics.csv"
+        if not metrics_file.exists():
+            print(f"Error: Neither kantar_bls_sample_data.csv nor bls_metrics.csv found!")
+            return
+        print(f"  Warning: Using bls_metrics.csv (kantar_bls_sample_data.csv not found)")
     
     print(f"  Loading {metrics_file.name}...")
     metrics = pd.read_csv(metrics_file, low_memory=False)
@@ -155,42 +165,101 @@ def enrich_metrics():
     print(f"  ✓ Loaded {len(filters):,} rows")
     print()
     
-    print("Step 2: Joining tables on FILTER_ID...")
-    print("-" * 80)
+    # Detect data format: transformed data has FILTER column, old data has FILTER_ID
+    is_transformed_data = 'FILTER' in metrics.columns and 'FILTER_ID' not in metrics.columns
     
-    # Join 1: metrics + filter_ids
-    print("  Joining bls_metrics with kantar_bls_filter_ids...")
-    enriched = metrics.merge(
-        filter_ids[['FILTER_ID', 'GROUP_NAME', 'NAME', 'SURVEY_ID', 'SURVEY_LABEL']],
-        on='FILTER_ID',
-        how='left'
-    )
-    print(f"  ✓ After first join: {len(enriched):,} rows")
-    
-    # Join 2: result + filters
-    print("  Joining with kantar_bls_filters...")
-    # Note: filters table uses 'ID' column, not 'FILTER_ID'
-    # Rename ID to FILTER_ID for joining
-    if 'ID' in filters.columns:
-        filters_renamed = filters.rename(columns={'ID': 'FILTER_ID'})
+    if is_transformed_data:
+        print("Step 2: Joining tables using FILTER column (filter name)...")
+        print("-" * 80)
+        
+        # Join 1: metrics + filter_ids using FILTER (name) -> NAME
+        print("  Joining metrics with kantar_bls_filter_ids using FILTER->NAME...")
+        if 'NAME' in filter_ids.columns:
+            filter_id_cols = ['NAME']  # Use NAME as the join key
+            for col in ['FILTER_ID', 'GROUP_NAME', 'SURVEY_ID', 'SURVEY_LABEL']:
+                if col in filter_ids.columns:
+                    filter_id_cols.append(col)
+            
+            # Rename NAME to FILTER for joining
+            filter_ids_for_join = filter_ids[filter_id_cols].copy()
+            filter_ids_for_join = filter_ids_for_join.rename(columns={'NAME': 'FILTER'})
+            filter_ids_for_join = filter_ids_for_join.drop_duplicates(subset=['FILTER'])
+            
+            enriched = metrics.merge(
+                filter_ids_for_join,
+                on='FILTER',
+                how='left'
+            )
+            print(f"  ✓ After first join: {len(enriched):,} rows")
+        else:
+            print("  Warning: NAME column not found in filter_ids, skipping merge")
+            enriched = metrics.copy()
+        
+        # Join 2: result + filters using FILTER (name) -> NAME
+        print("  Joining with kantar_bls_filters using FILTER->NAME...")
+        if 'NAME' in filters.columns:
+            filter_cols = ['NAME']  # Use NAME as the join key
+            for col in ['FILTER_ID', 'GROUP_NAME', 'SURVEY_ID']:
+                if col in filters.columns:
+                    filter_cols.append(col)
+            
+            # Rename ID to FILTER_ID if it exists, and NAME to FILTER for joining
+            filters_for_join = filters[filter_cols].copy()
+            if 'ID' in filters_for_join.columns:
+                filters_for_join = filters_for_join.rename(columns={'ID': 'FILTER_ID'})
+            filters_for_join = filters_for_join.rename(columns={'NAME': 'FILTER'})
+            filters_for_join = filters_for_join.drop_duplicates(subset=['FILTER'])
+            
+            enriched = enriched.merge(
+                filters_for_join,
+                on='FILTER',
+                how='left',
+                suffixes=('_filter_ids', '_filters')
+            )
+            print(f"  ✓ After second join: {len(enriched):,} rows")
+        else:
+            print("  Warning: NAME column not found in filters, skipping merge")
     else:
-        filters_renamed = filters.copy()
-    
-    # Get unique filter_id rows from filters to avoid many-to-many
-    filter_cols = ['FILTER_ID']
-    for col in ['GROUP_NAME', 'NAME', 'SURVEY_ID']:
-        if col in filters_renamed.columns:
-            filter_cols.append(col)
-    
-    filters_unique = filters_renamed[filter_cols].drop_duplicates(subset=['FILTER_ID'])
-    
-    enriched = enriched.merge(
-        filters_unique,
-        on='FILTER_ID',
-        how='left',
-        suffixes=('_filter_ids', '_filters')
-    )
-    print(f"  ✓ After second join: {len(enriched):,} rows")
+        print("Step 2: Joining tables on FILTER_ID...")
+        print("-" * 80)
+        
+        # Join 1: metrics + filter_ids
+        print("  Joining bls_metrics with kantar_bls_filter_ids...")
+        if 'FILTER_ID' in filter_ids.columns:
+            enriched = metrics.merge(
+                filter_ids[['FILTER_ID', 'GROUP_NAME', 'NAME', 'SURVEY_ID', 'SURVEY_LABEL']],
+                on='FILTER_ID',
+                how='left'
+            )
+            print(f"  ✓ After first join: {len(enriched):,} rows")
+        else:
+            print("  Warning: FILTER_ID column not found in filter_ids, skipping merge")
+            enriched = metrics.copy()
+        
+        # Join 2: result + filters
+        print("  Joining with kantar_bls_filters...")
+        # Note: filters table uses 'ID' column, not 'FILTER_ID'
+        # Rename ID to FILTER_ID for joining
+        if 'ID' in filters.columns:
+            filters_renamed = filters.rename(columns={'ID': 'FILTER_ID'})
+        else:
+            filters_renamed = filters.copy()
+        
+        # Get unique filter_id rows from filters to avoid many-to-many
+        filter_cols = ['FILTER_ID']
+        for col in ['GROUP_NAME', 'NAME', 'SURVEY_ID']:
+            if col in filters_renamed.columns:
+                filter_cols.append(col)
+        
+        filters_unique = filters_renamed[filter_cols].drop_duplicates(subset=['FILTER_ID'])
+        
+        enriched = enriched.merge(
+            filters_unique,
+            on='FILTER_ID',
+            how='left',
+            suffixes=('_filter_ids', '_filters')
+        )
+        print(f"  ✓ After second join: {len(enriched):,} rows")
     print()
     
     print("Step 3: Consolidating columns...")
@@ -205,14 +274,27 @@ def enrich_metrics():
         enriched = enriched.drop(columns=['GROUP_NAME_filter_ids'], errors='ignore')
     
     # Consolidate NAME/FILTER_NAME
-    if 'NAME_filters' in enriched.columns:
-        enriched['FILTER_NAME'] = enriched['NAME_filters'].fillna(enriched.get('NAME_filter_ids', ''))
-        if 'NAME_filter_ids' in enriched.columns:
+    if is_transformed_data:
+        # For transformed data, FILTER column already contains the filter name
+        if 'FILTER' in enriched.columns:
+            enriched['FILTER_NAME'] = enriched['FILTER']
+        # Also use NAME from merged tables if available
+        if 'NAME_filters' in enriched.columns:
+            enriched['FILTER_NAME'] = enriched['FILTER_NAME'].fillna(enriched['NAME_filters'])
+            enriched = enriched.drop(columns=['NAME_filters'], errors='ignore')
+        elif 'NAME_filter_ids' in enriched.columns:
+            enriched['FILTER_NAME'] = enriched['FILTER_NAME'].fillna(enriched['NAME_filter_ids'])
+            enriched = enriched.drop(columns=['NAME_filter_ids'], errors='ignore')
+    else:
+        # For old data format, use NAME from filters/filter_ids
+        if 'NAME_filters' in enriched.columns:
+            enriched['FILTER_NAME'] = enriched['NAME_filters'].fillna(enriched.get('NAME_filter_ids', ''))
+            if 'NAME_filter_ids' in enriched.columns:
+                enriched['NAME'] = enriched['NAME_filter_ids']
+            enriched = enriched.drop(columns=['NAME_filters', 'NAME_filter_ids'], errors='ignore')
+        elif 'NAME_filter_ids' in enriched.columns:
+            enriched['FILTER_NAME'] = enriched['NAME_filter_ids']
             enriched['NAME'] = enriched['NAME_filter_ids']
-        enriched = enriched.drop(columns=['NAME_filters', 'NAME_filter_ids'], errors='ignore')
-    elif 'NAME_filter_ids' in enriched.columns:
-        enriched['FILTER_NAME'] = enriched['NAME_filter_ids']
-        enriched['NAME'] = enriched['NAME_filter_ids']
     
     print("  ✓ Consolidated GROUP_NAME and FILTER_NAME columns")
     print()
